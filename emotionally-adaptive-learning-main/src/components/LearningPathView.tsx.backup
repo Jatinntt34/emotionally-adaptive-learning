@@ -1,0 +1,722 @@
+import { useLocation, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from 'framer-motion';
+import { Button } from '@/components/ui/button';
+import { useMood, moodConfig, MoodType } from '@/contexts/MoodContext';
+import { useProgress } from '@/contexts/ProgressContext';
+import {
+  ArrowLeft, Play, FileText, Clock, CheckCircle2,
+  BookOpen, Video, Trophy, Flame, History, ChevronUp,
+  ExternalLink, Brain, ChevronRight, XCircle,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useState, useEffect } from 'react';
+import { ModuleQuiz } from '@/components/ModuleQuiz';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface QuizQuestion {
+  id: number;
+  question: string;
+  options: string[];
+  correctAnswer: number;   // 0-based index into options[]
+  explanation: string;
+}
+
+interface LearningModule {
+  id: number;
+  title: string;
+  type: 'video' | 'article' | 'quiz';
+  duration: string;
+  completed: boolean;
+  searchQuery?: string;
+  youtubeUrl?: string;
+  articleContent?: string;
+  questions?: QuizQuestion[];  // only on quiz-type modules
+}
+
+interface QuizState {
+  currentIndex: number;
+  selectedAnswer: number | null;
+  answered: boolean;
+  score: number;
+  finished: boolean;
+  answers: number[];
+}
+
+function freshQuiz(): QuizState {
+  return { currentIndex: 0, selectedAnswer: null, answered: false, score: 0, finished: false, answers: [] };
+}
+
+// ─── InlineQuiz: renders questions from the backend ──────────────────────────
+
+function InlineQuiz({
+  module,
+  moodGradient,
+  onComplete,
+}: {
+  module: LearningModule;
+  moodGradient: string;
+  onComplete: (score: number, total: number) => void;
+}) {
+  const questions = module.questions ?? [];
+  const [s, setS] = useState<QuizState>(freshQuiz());
+
+  if (questions.length === 0) {
+    return (
+      <div className="rounded-xl border border-border bg-card/40 p-6 text-center text-sm text-muted-foreground">
+        No questions found for this quiz.
+        <Button className="mt-4 block mx-auto" variant="mood" size="sm"
+          onClick={() => onComplete(0, 0)}>
+          Mark complete
+        </Button>
+      </div>
+    );
+  }
+
+  const q = questions[s.currentIndex];
+  const isLast = s.currentIndex === questions.length - 1;
+
+  const select = (i: number) => { if (!s.answered) setS(p => ({ ...p, selectedAnswer: i })); };
+
+  const confirm = () => {
+    if (s.selectedAnswer === null || s.answered) return;
+    const correct = s.selectedAnswer === q.correctAnswer;
+    setS(p => ({
+      ...p,
+      answered: true,
+      score: correct ? p.score + 1 : p.score,
+      answers: [...p.answers, p.selectedAnswer!],
+    }));
+  };
+
+  const next = () => {
+    if (isLast) setS(p => ({ ...p, finished: true }));
+    else setS(p => ({ ...p, currentIndex: p.currentIndex + 1, selectedAnswer: null, answered: false }));
+  };
+
+  // Results screen
+  if (s.finished) {
+    const pct = Math.round((s.score / questions.length) * 100);
+    return (
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+        className="rounded-xl border border-border bg-card/50 p-8 text-center space-y-4">
+        <div className={`w-16 h-16 rounded-full mx-auto flex items-center justify-center bg-gradient-to-br ${moodGradient}`}>
+          {pct >= 60 ? <Trophy className="w-8 h-8" /> : <Brain className="w-8 h-8" />}
+        </div>
+        <h3 className="text-xl font-bold">{pct >= 60 ? 'Quiz Passed! 🎉' : 'Good Effort! 💪'}</h3>
+        <p className="text-muted-foreground">
+          <span className="font-bold text-foreground">{s.score}</span> / <span className="font-bold text-foreground">{questions.length}</span> correct ({pct}%)
+        </p>
+
+        {/* Per-question review */}
+        <div className="text-left space-y-2 mt-4 max-h-64 overflow-y-auto pr-1">
+          {questions.map((qq, i) => {
+            const userAns = s.answers[i];
+            const ok = userAns === qq.correctAnswer;
+            return (
+              <div key={qq.id} className={cn('rounded-lg border p-3 text-sm',
+                ok ? 'border-green-500/30 bg-green-500/5' : 'border-red-500/30 bg-red-500/5')}>
+                <p className="font-medium text-foreground mb-1">{qq.question}</p>
+                <p className={ok ? 'text-green-400' : 'text-red-400'}>
+                  {ok ? '✓' : '✗'} You answered: {qq.options[userAns]}
+                </p>
+                {!ok && <p className="text-green-400 text-xs mt-0.5">Correct: {qq.options[qq.correctAnswer]}</p>}
+                <p className="text-muted-foreground text-xs mt-1 italic">{qq.explanation}</p>
+              </div>
+            );
+          })}
+        </div>
+
+        <Button variant="mood" onClick={() => onComplete(s.score, questions.length)}>
+          <CheckCircle2 className="w-4 h-4 mr-2" /> Complete Module
+        </Button>
+      </motion.div>
+    );
+  }
+
+  // Active question
+  return (
+    <motion.div key={s.currentIndex} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}
+      className="rounded-xl border border-border bg-card/50 p-6 space-y-5">
+      {/* Progress bar */}
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span>Question {s.currentIndex + 1} of {questions.length}</span>
+        <span>{s.score} correct</span>
+      </div>
+      <div className="h-1 rounded-full bg-muted overflow-hidden">
+        <div className={`h-full bg-gradient-to-r ${moodGradient} transition-all duration-500`}
+          style={{ width: `${(s.currentIndex / questions.length) * 100}%` }} />
+      </div>
+
+      <p className="text-base font-semibold text-foreground leading-snug">{q.question}</p>
+
+      {/* Options */}
+      <div className="space-y-2">
+        {q.options.map((opt, i) => {
+          const isSelected = i === s.selectedAnswer;
+          const isCorrect = i === q.correctAnswer;
+          const isWrong = s.answered && isSelected && !isCorrect;
+
+          return (
+            <button key={i} onClick={() => select(i)} disabled={s.answered}
+              className={cn(
+                'w-full text-left rounded-lg border px-4 py-3 text-sm transition-all duration-200',
+                !s.answered && isSelected && 'border-primary bg-primary/10 text-foreground',
+                !s.answered && !isSelected && 'border-border bg-card/30 text-muted-foreground hover:border-primary/50 hover:bg-primary/5',
+                s.answered && isCorrect && 'border-green-500 bg-green-500/10 text-green-400',
+                s.answered && isWrong && 'border-red-500 bg-red-500/10 text-red-400 line-through',
+                s.answered && !isCorrect && !isWrong && 'border-border/40 bg-card/20 text-muted-foreground/50',
+              )}>
+              <span className="mr-2 font-mono text-xs opacity-60">{String.fromCharCode(65 + i)}.</span>
+              {opt}
+              {s.answered && isCorrect && <CheckCircle2 className="inline w-4 h-4 ml-2 text-green-400" />}
+              {s.answered && isWrong && <XCircle className="inline w-4 h-4 ml-2 text-red-400" />}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Explanation */}
+      <AnimatePresence>
+        {s.answered && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className={cn('rounded-lg border px-4 py-3 text-sm',
+              s.selectedAnswer === q.correctAnswer
+                ? 'border-green-500/30 bg-green-500/5 text-green-300'
+                : 'border-red-500/30  bg-red-500/5  text-red-300')}>
+            <span className="font-semibold mr-1">
+              {s.selectedAnswer === q.correctAnswer ? '✓ Correct!' : '✗ Not quite.'}
+            </span>
+            {q.explanation}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="flex justify-end gap-2">
+        {!s.answered
+          ? <Button variant="mood" size="sm" disabled={s.selectedAnswer === null} onClick={confirm}>Confirm Answer</Button>
+          : <Button variant="mood" size="sm" onClick={next}>
+            {isLast ? 'See Results' : 'Next Question'}<ChevronRight className="w-4 h-4 ml-1" />
+          </Button>
+        }
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── Offline fallbacks ────────────────────────────────────────────────────────
+
+const getVideoSearchQuery = (topic: string, t: string) =>
+  ({ introduction: `${topic} tutorial for beginners`, setup: `${topic} setup tutorial`, project: `${topic} project build`, advanced: `${topic} advanced tutorial` }[t] ?? `${topic} tutorial`);
+
+const generateArticleContent = (topic: string, title: string) =>
+  `# ${title}\n\n## Introduction\nWelcome to this guide on ${title}.\n\nThis module covers essential concepts of ${topic}.\n\n## Summary\nKeep practising and move on to the next module!`;
+
+const generateModules = (topic: string, format = 'mixed'): LearningModule[] => {
+  const all: LearningModule[] = [
+    { id: 1, title: `Introduction to ${topic}`, type: 'video', duration: '15 min', completed: false, searchQuery: getVideoSearchQuery(topic, 'introduction') },
+    { id: 2, title: `Core Concepts of ${topic}`, type: 'article', duration: '10 min', completed: false, articleContent: generateArticleContent(topic, `Core Concepts of ${topic}`) },
+    { id: 3, title: `Setting Up Your ${topic} Environment`, type: 'video', duration: '20 min', completed: false, searchQuery: getVideoSearchQuery(topic, 'setup') },
+    { id: 4, title: 'Knowledge Check', type: 'quiz', duration: '5 min', completed: false, questions: [] },
+    { id: 5, title: `Building Your First ${topic} Project`, type: 'video', duration: '30 min', completed: false, searchQuery: getVideoSearchQuery(topic, 'project') },
+    { id: 6, title: `Best Practices for ${topic}`, type: 'article', duration: '15 min', completed: false, articleContent: generateArticleContent(topic, 'Best Practices') },
+    { id: 7, title: `Advanced ${topic} Techniques`, type: 'video', duration: '25 min', completed: false, searchQuery: getVideoSearchQuery(topic, 'advanced') },
+    { id: 8, title: 'Final Assessment', type: 'quiz', duration: '15 min', completed: false, questions: [] },
+  ];
+  if (format === 'videos') return all.map(m => m.type === 'article' ? { ...m, type: 'video' as const, articleContent: undefined, searchQuery: getVideoSearchQuery(topic, 'introduction') } : m);
+  if (format === 'articles') return all.map(m => m.type === 'video' ? { ...m, type: 'article' as const, searchQuery: undefined, articleContent: generateArticleContent(topic, m.title) } : m);
+  return all;
+};
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
+export function LearningPathView() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { moodColors, mood } = useMood();
+  const { addLearningPath, updateModuleCompletion, removeModuleCompletion, getPathById } = useProgress();
+
+  const mouseX = useMotionValue(0);
+  const mouseY = useMotionValue(0);
+  const smoothX = useSpring(mouseX, { stiffness: 40, damping: 30 });
+  const smoothY = useSpring(mouseY, { stiffness: 40, damping: 30 });
+  const blobX = useTransform(smoothX, [-1, 1], [-30, 30]);
+  const blobY = useTransform(smoothY, [-1, 1], [-20, 20]);
+  const blob2X = useTransform(smoothX, [-1, 1], [20, -20]);
+  const blob2Y = useTransform(smoothY, [-1, 1], [15, -15]);
+
+  useEffect(() => {
+    const h = (e: MouseEvent) => {
+      mouseX.set((e.clientX / window.innerWidth - 0.5) * 2);
+      mouseY.set((e.clientY / window.innerHeight - 0.5) * 2);
+    };
+    window.addEventListener('mousemove', h);
+    return () => window.removeEventListener('mousemove', h);
+  }, [mouseX, mouseY]);
+
+  const moodMessages: Record<string, { motivation: string; onComplete: string }> = {
+    energetic: { motivation: '⚡ Channel your energy — crush these modules!', onComplete: "You're on fire! 🔥" },
+    calm: { motivation: '🌊 Learn at your own pace, no pressure.', onComplete: 'Beautifully done 🌸' },
+    focused: { motivation: "🎯 Deep focus mode — let's lock in.", onComplete: 'Precision achieved ✅' },
+    creative: { motivation: '✨ Let curiosity guide your path.', onComplete: 'Creative genius! 🎨' },
+    motivated: { motivation: '🚀 Your momentum is unstoppable!', onComplete: 'Champion performance! 🏆' },
+    sad: { motivation: '💙 Learning is self-care. You\'re doing great.', onComplete: 'You did something wonderful 🌈' },
+    anxious: { motivation: "🛡️ One module at a time. You're safe here.", onComplete: 'Proud of you! 💛' },
+    bored: { motivation: "🎲 Let's make this interesting!", onComplete: "That wasn't boring at all! 🎉" },
+    unmotivated: { motivation: '🌱 Every step forward counts.', onComplete: 'See? You can do it! 💪' },
+    curious: { motivation: '🔍 So many things to discover!', onComplete: 'Knowledge unlocked! 🧠' },
+  };
+
+  const pathData = location.state as {
+    topic: string; mood: string; speed: string; format: string; goal: string;
+    pathId?: string; suggestedDifficulty?: string | null;
+    emotionSource?: string | null; detectedConfidence?: number | null;
+  } | null;
+
+  const [pathId, setPathId] = useState<string | null>(pathData?.pathId || null);
+  const [modules, setModules] = useState<LearningModule[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isFallback, setIsFallback] = useState(false);
+  const [expandedModule, setExpandedModule] = useState<number | null>(null);
+  const [quizActiveFor, setQuizActiveFor] = useState<number | null>(null);
+  const [quizCompletedFor, setQuizCompletedFor] = useState<Set<number>>(new Set());
+  const [videoIds, setVideoIds] = useState<Record<number, string | 'loading' | 'error'>>({});
+  // Learning data: quiz scores per module id
+  const [quizScores, setQuizScores] = useState<Record<number, { score: number; total: number }>>({});
+
+  async function fetchVideoId(moduleId: number, q: string) {
+    setVideoIds(p => ({ ...p, [moduleId]: 'loading' }));
+    try {
+      const res = await fetch(`/api/youtube-search?q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      setVideoIds(p => ({ ...p, [moduleId]: data.videoId ?? 'error' }));
+    } catch { setVideoIds(p => ({ ...p, [moduleId]: 'error' })); }
+  }
+
+  async function fetchLearningPath() {
+    if (!pathData) { setLoading(false); return; }
+    setLoading(true); setError(null); setIsFallback(false);
+    try {
+      const res = await fetch('/api/generate-path', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic: pathData.topic, goal: pathData.goal, mood: pathData.mood,
+          format: pathData.format, speed: pathData.speed,
+          suggestedDifficulty: pathData.suggestedDifficulty || 'beginner',
+        }),
+      });
+      if (!res.ok) throw new Error(`Server error: ${res.status}`);
+      const data = await res.json();
+      if (data.status === 'error' || !data.modules?.length) {
+        setIsFallback(true);
+        setupPathState(generateModules(pathData.topic, pathData.format));
+      } else {
+        setupPathState(data.modules);
+      }
+    } catch (err) {
+      setIsFallback(true);
+      setError(err instanceof Error ? err.message : 'Something went wrong.');
+      setupPathState(generateModules(pathData.topic, pathData.format));
+    } finally { setLoading(false); }
+  }
+
+  function setupPathState(mods: LearningModule[]) {
+    if (pathData?.pathId) {
+      const ex = getPathById(pathData.pathId);
+      if (ex) {
+        setModules(mods.map(m => ({ ...m, completed: ex.completedModules.some(c => c.id === m.id) })));
+        setPathId(pathData.pathId);
+        return;
+      }
+    }
+    const id = addLearningPath({ topic: pathData!.topic, mood: pathData!.mood, speed: pathData!.speed, format: pathData!.format, goal: pathData!.goal, totalModules: mods.length });
+    setPathId(id);
+    setModules(mods);
+  }
+
+  useEffect(() => { fetchLearningPath(); }, []);
+
+  // Completion helpers
+  const toggleComplete = (module: LearningModule) => {
+    if (!pathId) return;
+    const next = !module.completed;
+    if (next) updateModuleCompletion(pathId, { id: module.id, title: module.title, type: module.type, completedAt: new Date() });
+    else removeModuleCompletion(pathId, module.id);
+    setModules(p => p.map(m => m.id === module.id ? { ...m, completed: next } : m));
+  };
+
+  const handleMarkComplete = (module: LearningModule, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (quizCompletedFor.has(module.id)) toggleComplete(module);
+    else setQuizActiveFor(module.id);
+  };
+
+  const handleModuleQuizComplete = (id: number, score: number, total: number) => {
+    setQuizActiveFor(null);
+    setQuizCompletedFor(p => new Set(p).add(id));
+    const m = modules.find(m => m.id === id);
+    if (m && !m.completed) toggleComplete(m);
+  };
+
+  const handleModuleQuizSkip = (id: number) => {
+    setQuizActiveFor(null);
+    setQuizCompletedFor(p => new Set(p).add(id));
+    const m = modules.find(m => m.id === id);
+    if (m && !m.completed) toggleComplete(m);
+  };
+
+  // Called when an inline quiz module finishes
+  const handleInlineQuizComplete = (id: number, score: number, total: number) => {
+    setQuizScores(p => ({ ...p, [id]: { score, total } }));
+    const m = modules.find(m => m.id === id);
+    if (m && !m.completed) toggleComplete(m);
+  };
+
+  const toggleExpand = (moduleId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const next = expandedModule === moduleId ? null : moduleId;
+    setExpandedModule(next);
+    if (next !== null) {
+      const mod = modules.find(m => m.id === moduleId);
+      if (mod?.type === 'video' && mod.searchQuery && !videoIds[moduleId]) fetchVideoId(moduleId, mod.searchQuery);
+    }
+  };
+
+  const openYT = (q: string) => window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`, '_blank');
+
+  const completedCount = modules.filter(m => m.completed).length;
+  const progress = modules.length > 0 ? (completedCount / modules.length) * 100 : 0;
+
+  const TypeIcon = (type: string) => ({ video: Video, article: FileText, quiz: Trophy }[type] ?? BookOpen);
+
+  if (!pathData) return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center">
+        <h2 className="text-2xl font-bold mb-4">No learning path found</h2>
+        <Button onClick={() => navigate('/create-path')}>Create One</Button>
+      </div>
+    </div>
+  );
+
+  const loadingMessages: Record<string, string> = {
+    anxious: 'Taking it step by step, building your path gently...', sad: 'Crafting something warm and achievable just for you...',
+    energetic: 'Assembling a high-octane curriculum — hold tight!', bored: 'Finding the most interesting angles on this topic...',
+    focused: 'Structuring a deep, logical learning sequence...', calm: 'Building a steady, well-paced path for you...',
+    motivated: 'Designing an ambitious curriculum to push you forward...', creative: 'Exploring unconventional angles on your topic...',
+    unmotivated: 'Starting with quick wins to get your momentum going...', curious: 'Diving deep — finding the fascinating why behind everything...',
+  };
+
+  if (loading) return (
+    <div className="flex min-h-screen flex-col items-center justify-center gap-8 p-8 bg-background relative overflow-hidden">
+      <motion.div animate={{ rotate: 360 }} transition={{ duration: 40, repeat: Infinity, ease: 'linear' }}
+        className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-gradient-to-br ${moodColors.gradient} rounded-full blur-[120px] opacity-10`} />
+      <div className="relative z-10 flex flex-col items-center gap-6">
+        <div className={`p-5 rounded-2xl bg-gradient-to-br ${moodColors.gradient} animate-pulse shadow-lg`}>
+          <Brain className="w-10 h-10 text-black/80" />
+        </div>
+        <p className="max-w-sm text-center text-lg font-medium tracking-wide animate-pulse">
+          {loadingMessages[pathData.mood] ?? 'Generating your personalised learning path...'}
+        </p>
+        <div className="w-full max-w-xl space-y-4 mt-8">
+          {[1, 2, 3].map(n => (
+            <div key={n} className="space-y-3 rounded-2xl border border-border/30 bg-card/20 p-6 glass-card">
+              <div className={`h-4 w-3/4 rounded-full bg-gradient-to-r ${moodColors.gradient} opacity-20`} />
+              <div className="h-3 w-1/4 rounded-full bg-muted-foreground/20" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  if (error && !isFallback) return (
+    <div className="flex min-h-screen flex-col items-center justify-center gap-6 p-8 text-center bg-background">
+      <p className="text-lg font-medium opacity-90">Couldn't generate your path right now.</p>
+      <p className="max-w-sm text-sm opacity-60">{error}</p>
+      <Button onClick={fetchLearningPath} variant="outline">Try again</Button>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-background relative overflow-hidden">
+      <div className="absolute inset-0 overflow-hidden">
+        <motion.div className={`absolute top-0 right-0 w-[600px] h-[600px] bg-gradient-to-br ${moodColors.gradient} rounded-full blur-3xl opacity-10`} style={{ x: blobX, y: blobY }} />
+        <motion.div className={`absolute bottom-1/4 left-0 w-[400px] h-[400px] bg-gradient-to-tr ${moodColors.gradient} rounded-full blur-[100px] opacity-[0.06]`} style={{ x: blob2X, y: blob2Y }} />
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.01)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[size:64px_64px]" />
+      </div>
+
+      <div className="relative z-10 container mx-auto px-6 py-12">
+        {/* Nav */}
+        <div className="flex items-center justify-between gap-4 mb-8">
+          <Button variant="ghost" onClick={() => navigate('/')}><ArrowLeft className="w-4 h-4 mr-2" />Home</Button>
+          <Button variant="outline" onClick={() => navigate('/progress')}><History className="w-4 h-4 mr-2" />My Progress</Button>
+        </div>
+
+        {/* Header card */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-3xl p-8 mb-8">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div>
+              <div className="flex items-center gap-3 mb-2">
+                <div className={`p-2 rounded-xl bg-gradient-to-br ${moodColors.gradient}`}><BookOpen className="w-6 h-6" /></div>
+                <span className="text-sm text-muted-foreground uppercase tracking-wide">Learning Path</span>
+              </div>
+              <h1 className="font-display text-4xl font-bold mb-2">{pathData.topic}</h1>
+              <p className="text-muted-foreground">{pathData.goal}</p>
+              <div className="flex items-center gap-3 mt-3 flex-wrap">
+                {pathData.mood && moodConfig[pathData.mood as MoodType] && (
+                  <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium bg-gradient-to-r ${moodConfig[pathData.mood as MoodType].gradient} text-foreground`}>
+                    <Brain className="w-3.5 h-3.5" />{moodConfig[pathData.mood as MoodType].label}
+                  </span>
+                )}
+                {pathData.suggestedDifficulty && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-secondary/60 text-foreground capitalize">
+                    Difficulty: {pathData.suggestedDifficulty}
+                  </span>
+                )}
+                {isFallback && (
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold bg-orange-500/20 text-orange-500 uppercase tracking-widest">
+                    Offline Mode
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-6">
+              <div className="text-center">
+                <div className="flex items-center gap-2 text-3xl font-bold"><Flame className="w-6 h-6 text-orange-500" />{completedCount}</div>
+                <span className="text-sm text-muted-foreground">Completed</span>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold">{Math.round(progress)}%</div>
+                <span className="text-sm text-muted-foreground">Progress</span>
+              </div>
+            </div>
+          </div>
+          <div className="mt-6">
+            <div className="h-2 bg-muted rounded-full overflow-hidden">
+              <motion.div initial={{ width: 0 }} animate={{ width: `${progress}%` }} transition={{ duration: 0.5, ease: 'easeOut' }}
+                className={`h-full bg-gradient-to-r ${moodColors.gradient}`} />
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Motivation banner */}
+        <motion.div key={`m-${mood}`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+          className="rounded-2xl p-4 mb-6 border border-primary/10 backdrop-blur-sm"
+          style={{ background: 'linear-gradient(135deg, hsl(var(--primary) / 0.08), transparent)' }}>
+          <p className="text-sm text-center font-medium text-primary/80">
+            {moodMessages[mood]?.motivation ?? '📚 Keep learning, keep growing!'}
+          </p>
+        </motion.div>
+
+        {/* Module list */}
+        <div className="space-y-4">
+          {modules.map((module, index) => {
+            const Icon = TypeIcon(module.type);
+            const isExpanded = expandedModule === module.id;
+            const savedScore = quizScores[module.id];
+
+            return (
+              <motion.div key={module.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: index * 0.04 }} whileHover={{ y: -2, scale: 1.005 }}
+                className={cn('glass-card rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-lg hover:shadow-primary/5',
+                  module.completed ? 'border-primary/30 bg-primary/5' : 'hover:border-primary/20')}>
+
+                {/* Row */}
+                <div className="p-6 flex items-center gap-4">
+                  <div className={cn('w-12 h-12 rounded-xl flex items-center justify-center transition-all shrink-0',
+                    module.completed ? `bg-gradient-to-br ${moodColors.gradient}` : 'bg-muted')}>
+                    {module.completed
+                      ? <CheckCircle2 className="w-6 h-6" />
+                      : <span className="font-display font-bold text-lg text-muted-foreground">{index + 1}</span>}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className={cn('font-semibold transition-all truncate', module.completed && 'line-through text-muted-foreground')}>
+                      {module.title}
+                    </h3>
+                    <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1 flex-wrap">
+                      <span className="flex items-center gap-1.5 capitalize"><Icon className="w-3.5 h-3.5" />{module.type}</span>
+                      <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{module.duration}</span>
+                      {module.completed && <span className="text-xs text-primary font-medium">✓ Completed</span>}
+                      {savedScore && (
+                        <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                          Score: {savedScore.score}/{savedScore.total}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button variant={isExpanded ? 'outline' : 'mood'} size="sm"
+                      onClick={(e) => toggleExpand(module.id, e)}>
+                      {isExpanded ? (
+                        <><ChevronUp className="w-4 h-4 mr-1" />Close</>
+                      ) : module.type === 'quiz' ? (
+                        <><Trophy className="w-4 h-4 mr-1" />{module.completed ? 'Review' : 'Take Quiz'}</>
+                      ) : module.completed ? (
+                        <><Play className="w-4 h-4 mr-1" />Review</>
+                      ) : (
+                        <><Play className="w-4 h-4 mr-1" />Start</>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Expanded panel */}
+                <AnimatePresence>
+                  {isExpanded && (
+                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.3 }} className="overflow-hidden">
+                      <div className="px-6 pb-6 space-y-4">
+
+                        {/* VIDEO */}
+                        {module.type === 'video' && module.searchQuery && (<>
+                          <div className="rounded-xl overflow-hidden bg-card/50 border border-border">
+                            <div className="aspect-video relative bg-black/40 flex items-center justify-center">
+                              {videoIds[module.id] === 'loading' && (
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                  <div className="w-8 h-8 border-2 border-primary/40 border-t-primary rounded-full animate-spin" />
+                                </div>
+                              )}
+                              {videoIds[module.id] && videoIds[module.id] !== 'loading' && videoIds[module.id] !== 'error' && (
+                                <iframe width="100%" height="100%" className="w-full h-full absolute inset-0"
+                                  src={`https://www.youtube.com/embed/${videoIds[module.id]}?autoplay=0&rel=0`}
+                                  title={module.title} frameBorder="0"
+                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                  allowFullScreen />
+                              )}
+                              {(!videoIds[module.id] || videoIds[module.id] === 'error') && (
+                                <div className="text-sm text-muted-foreground text-center p-4">
+                                  <p className="mb-2">Search YouTube for this topic</p>
+                                  <a href={`https://www.youtube.com/results?search_query=${encodeURIComponent(module.searchQuery)}`}
+                                    target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                                    "{module.searchQuery}" →
+                                  </a>
+                                </div>
+                              )}
+                            </div>
+                            <div className="p-4 bg-card/30 border-t border-border flex items-center justify-between gap-3 flex-wrap">
+                              <Button variant="outline" size="sm" onClick={() => openYT(module.searchQuery!)}>
+                                <ExternalLink className="w-4 h-4 mr-2" />More on YouTube
+                              </Button>
+                              {!module.completed && quizActiveFor !== module.id && (
+                                <Button variant="mood" size="sm" onClick={(e) => handleMarkComplete(module, e)}>
+                                  <CheckCircle2 className="w-4 h-4 mr-1" />Mark as Complete
+                                </Button>
+                              )}
+                              {module.completed && (
+                                <span className="text-sm text-primary font-medium flex items-center gap-1.5">
+                                  <CheckCircle2 className="w-4 h-4" />Completed
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {quizActiveFor === module.id && (
+                            <ModuleQuiz topic={pathData.topic} moduleTitle={module.title} moduleType={module.type}
+                              moodGradient={moodColors.gradient}
+                              onComplete={(s, t) => handleModuleQuizComplete(module.id, s, t)}
+                              onSkip={() => handleModuleQuizSkip(module.id)} />
+                          )}
+                        </>)}
+
+                        {/* ARTICLE */}
+                        {module.type === 'article' && module.articleContent && (<>
+                          <div className="bg-card/50 rounded-xl p-6 max-h-[600px] overflow-y-auto border border-border">
+                            <div className="space-y-3">
+                              {module.articleContent.split('\n').map((line, i) => {
+                                const t = line.trim();
+                                if (!t) return null;
+                                if (t.startsWith('# ')) return <h1 key={i} className="text-2xl font-bold text-foreground mt-6 mb-3 first:mt-0">{t.slice(2)}</h1>;
+                                if (t.startsWith('## ')) return <h2 key={i} className="text-xl font-semibold text-foreground mt-6 mb-2">{t.slice(3)}</h2>;
+                                if (t.startsWith('### ')) return <h3 key={i} className="text-lg font-medium text-foreground mt-4 mb-2">{t.slice(4)}</h3>;
+                                if (t.startsWith('```')) return <div key={i} className="bg-muted/50 rounded-lg p-4 font-mono text-sm my-4 whitespace-pre-wrap">{t.replace(/```\w*/g, '')}</div>;
+                                if (t.startsWith('|')) return <div key={i} className="font-mono text-sm text-muted-foreground bg-muted/30 px-2 py-1">{t}</div>;
+                                if (t.startsWith('- ')) {
+                                  const m2 = t.match(/^- \*\*(.+?)\*\*:?\s*(.*)/);
+                                  if (m2) return <div key={i} className="flex gap-2 text-muted-foreground ml-4 py-0.5"><span className="text-primary">•</span><span><strong className="text-foreground">{m2[1]}</strong>{m2[2] ? `: ${m2[2]}` : ''}</span></div>;
+                                  return <p key={i} className="text-muted-foreground ml-4 flex gap-2 py-0.5"><span className="text-primary">•</span>{t.slice(2)}</p>;
+                                }
+                                if (t.match(/^\d+\./)) return <p key={i} className="text-muted-foreground ml-4 py-0.5">{t}</p>;
+                                const parts = t.split(/(\*\*[^*]+\*\*)/g);
+                                return <p key={i} className="text-muted-foreground leading-relaxed">{parts.map((p2, j) => p2.startsWith('**') && p2.endsWith('**') ? <strong key={j} className="text-foreground">{p2.slice(2, -2)}</strong> : p2)}</p>;
+                              })}
+                            </div>
+                          </div>
+                          <div className="flex justify-end">
+                            {!module.completed && quizActiveFor !== module.id
+                              ? <Button variant="mood" size="sm" onClick={(e) => handleMarkComplete(module, e)}><CheckCircle2 className="w-4 h-4 mr-1" />Mark as Complete</Button>
+                              : module.completed
+                                ? <span className="text-sm text-primary font-medium flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4" />Completed</span>
+                                : null}
+                          </div>
+                          {quizActiveFor === module.id && (
+                            <ModuleQuiz topic={pathData.topic} moduleTitle={module.title} moduleType={module.type}
+                              moodGradient={moodColors.gradient}
+                              onComplete={(s, t) => handleModuleQuizComplete(module.id, s, t)}
+                              onSkip={() => handleModuleQuizSkip(module.id)} />
+                          )}
+                        </>)}
+
+                        {/* QUIZ MODULE — real questions from backend */}
+                        {module.type === 'quiz' && (
+                          module.completed ? (
+                            <div className="rounded-xl border border-primary/20 bg-primary/5 p-6 text-center space-y-3">
+                              <CheckCircle2 className="w-8 h-8 text-primary mx-auto" />
+                              <p className="font-semibold text-foreground">Quiz Completed!</p>
+                              {savedScore && (
+                                <p className="text-sm text-muted-foreground">
+                                  You scored {savedScore.score}/{savedScore.total} ({Math.round((savedScore.score / savedScore.total) * 100)}%)
+                                </p>
+                              )}
+                              <Button variant="outline" size="sm" onClick={() => {
+                                toggleComplete(module);
+                                setQuizScores(p => { const n = { ...p }; delete n[module.id]; return n; });
+                              }}>
+                                Retake Quiz
+                              </Button>
+                            </div>
+                          ) : (
+                            <InlineQuiz
+                              module={module}
+                              moodGradient={moodColors.gradient}
+                              onComplete={(score, total) => handleInlineQuizComplete(module.id, score, total)}
+                            />
+                          )
+                        )}
+
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            );
+          })}
+        </div>
+
+        {/* Course completion celebration */}
+        {progress === 100 && modules.length > 0 && (
+          <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }}
+            className={`mt-8 rounded-3xl p-8 text-center bg-gradient-to-br ${moodColors.gradient} bg-opacity-20 border border-primary/20`}>
+            <Trophy className="w-12 h-12 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold mb-2">Course Complete! 🎉</h2>
+            <p className="text-muted-foreground mb-2">{moodMessages[mood]?.onComplete ?? 'Amazing work!'}</p>
+            {Object.keys(quizScores).length > 0 && (
+              <p className="text-sm text-muted-foreground mb-6">
+                Quiz average:{' '}
+                {Math.round(
+                  Object.values(quizScores).reduce((acc, s) => acc + (s.score / s.total) * 100, 0) /
+                  Object.values(quizScores).length
+                )}%
+              </p>
+            )}
+            <div className="flex gap-3 justify-center flex-wrap">
+              <Button variant="mood" onClick={() => navigate('/create-path')}>Start a New Path</Button>
+              <Button variant="outline" onClick={() => navigate('/progress')}>View My Progress</Button>
+            </div>
+          </motion.div>
+        )}
+      </div>
+    </div>
+  );
+}

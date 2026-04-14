@@ -1,0 +1,7 @@
+project_id = "njhnvjjjoacfmcqsablm"
+
+[functions.detect-face-emotion]
+verify_jwt = false
+
+[functions.detect-voice-emotion]
+verify_jwt = false
