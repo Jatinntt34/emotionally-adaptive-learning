@@ -316,7 +316,17 @@ export function LearningPathCreator() {
                         <div className="relative aspect-video rounded-2xl overflow-hidden bg-black/60 border border-white/5 mb-4 group">
                           {isCamActive ? (
                             <>
-                              <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover transform -scale-x-100" />
+                              <video 
+                                ref={(el) => {
+                                  if (el && videoRef.current?.srcObject) {
+                                    el.srcObject = videoRef.current.srcObject;
+                                  }
+                                }} 
+                                autoPlay 
+                                muted 
+                                playsInline 
+                                className="w-full h-full object-cover transform -scale-x-100" 
+                              />
                               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
                               <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/20 backdrop-blur-md border border-primary/20">
                                 <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity }} className="w-2 h-2 rounded-full bg-primary" />

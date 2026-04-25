@@ -1,5 +1,8 @@
 import React, { useRef, useEffect } from 'react';
 import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+
+gsap.registerPlugin(ScrollTrigger);
 
 interface RevealSectionProps {
   children: React.ReactNode;
@@ -13,22 +16,33 @@ export function RevealSection({ children, className, delay = 0 }: RevealSectionP
   useEffect(() => {
     if (!sectionRef.current) return;
 
-    // Simple mount animation — NO ScrollTrigger.
-    // ScrollTrigger breaks inside AnimatePresence step transitions
-    // because the scroll position doesn't reset between steps.
-    const tween = gsap.fromTo(sectionRef.current, 
-      { opacity: 0, y: 40, filter: 'blur(6px)' },
-      {
-        opacity: 1,
-        y: 0,
-        filter: 'blur(0px)',
-        duration: 0.8,
-        delay,
-        ease: "power3.out",
-      }
-    );
+    const ctx = gsap.context(() => {
+      gsap.fromTo(sectionRef.current, 
+        { 
+          opacity: 0, 
+          y: 40, 
+          filter: 'blur(8px)',
+          scale: 0.98
+        },
+        {
+          opacity: 1,
+          y: 0,
+          filter: 'blur(0px)',
+          scale: 1,
+          duration: 1.4,
+          delay,
+          ease: "power3.out",
+          scrollTrigger: {
+            trigger: sectionRef.current,
+            start: "top 88%",
+            toggleActions: "play none none none",
+            fastScrollEnd: true
+          }
+        }
+      );
+    }, sectionRef);
 
-    return () => { tween.kill(); };
+    return () => ctx.revert();
   }, [delay]);
 
   return (

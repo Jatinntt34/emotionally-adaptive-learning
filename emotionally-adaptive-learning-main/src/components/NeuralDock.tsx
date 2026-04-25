@@ -22,6 +22,7 @@ export function NeuralDock() {
     isCamActive, setIsCamActive,
     isMicActive, setIsMicActive,
     currentEmotion, confidence,
+    liveEmotion, liveConfidence,
     timerState, timeLeft,
     videoRef, canvasRef,
     audioLevel
@@ -135,9 +136,9 @@ export function NeuralDock() {
                       
                       <div className="flex items-baseline gap-2">
                         <span className="text-lg font-display font-bold capitalize text-primary line-clamp-1">
-                          {currentEmotion.includes('Initializing') ? currentEmotion : (detectedRawEmotion || currentEmotion)}
+                          {liveEmotion}
                         </span>
-                        <span className="text-xs font-mono text-white/20">{Math.round(confidence * 100)}%</span>
+                        <span className="text-xs font-mono text-white/20">{Math.round(liveConfidence * 100)}%</span>
                       </div>
 
                       {/* Transcription HUD */}

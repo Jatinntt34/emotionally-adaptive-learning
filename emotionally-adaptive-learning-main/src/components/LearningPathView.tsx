@@ -36,7 +36,7 @@ import {
 import { useNeuralTracking } from '@/contexts/NeuralContext';
 import { LivingIcon } from './LivingIcon';
 import { cn } from '@/lib/utils';
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ModuleQuiz } from '@/components/ModuleQuiz';
 import { MagneticButton } from './ui/MagneticButton';
 import { RevealSection } from './ui/RevealSection';
@@ -159,7 +159,7 @@ function InlineQuiz({
         </div>
 
         <Button variant="mood" onClick={() => onComplete(s.score, questions.length)}>
-          <CheckCircle2 className="w-4 h-4 mr-2" /> Complete Module
+          <CheckCircle2 className="w-4 h-4 mr-2" /> {"Complete Module"}
         </Button>
       </motion.div>
     );
@@ -360,6 +360,7 @@ export function LearningPathView() {
     isMicActive, setIsMicActive, 
     currentEmotion, confidence, 
     voiceEmotion, voiceConfidence,
+    liveEmotion, liveConfidence,
     videoRef, audioLevel 
   } = useNeuralTracking();
 
@@ -398,15 +399,17 @@ export function LearningPathView() {
   
   const pathData = {
     topic: locationState?.topic || recoveredPath?.topic || '',
-    mood: locationState?.mood || recoveredPath?.mood || 'energetic',
+    mood: (locationState?.mood || recoveredPath?.mood || 'energetic') as MoodType,
     speed: locationState?.speed || recoveredPath?.speed || 'moderate',
     format: locationState?.format || recoveredPath?.format || 'mixed',
     goal: locationState?.goal || recoveredPath?.goal || '',
     suggestedDifficulty: locationState?.suggestedDifficulty || recoveredPath?.suggestedDifficulty || 'beginner',
     pathId: pathId,
-    modules: recoveredPath?.modules || locationState?.modules
+    modules: (recoveredPath?.modules || locationState?.modules) || []
   };
-  const [modules, setModules] = useState<LearningModule[]>([]);
+  
+  const currentMoodColors = moodColors || moodConfig[pathData.mood] || moodConfig.energetic;
+  const [modules, setModules] = useState<LearningModule[]>(pathData.modules);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isFallback, setIsFallback] = useState(false);
@@ -476,10 +479,10 @@ export function LearningPathView() {
     if (pathId && !locationState) {
       const ex = getPathById(pathId);
       if (ex) {
-        setModules(ex.modules || mods);
-        setModules(prev => prev.map(m => ({
+        setModules(ex.modules || mods || []);
+        setModules(prev => (prev || []).map(m => ({
           ...m,
-          completed: ex.completedModules.some(c => c.id === m.id)
+          completed: (ex.completedModules || []).some(c => c.id === m.id)
         })));
         return;
       }
@@ -510,10 +513,10 @@ export function LearningPathView() {
       const ex = getPathById(idFromUrl);
       if (ex) {
         setPathId(idFromUrl);
-        setModules(ex.modules || []);
-        setModules(prev => (ex.modules || prev).map(m => ({
+        const mods = ex.modules || [];
+        setModules(mods.map(m => ({
           ...m,
-          completed: ex.completedModules.some(c => c.id === m.id)
+          completed: (ex.completedModules || []).some(c => c.id === m.id)
         })));
         setLoading(false);
         return;
@@ -615,13 +618,13 @@ export function LearningPathView() {
   if (loading) return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-8 p-8 bg-background relative overflow-hidden">
       <motion.div animate={{ rotate: 360 }} transition={{ duration: 40, repeat: Infinity, ease: 'linear' }}
-        className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-gradient-to-br ${moodColors.gradient} rounded-full blur-[120px] opacity-10`} />
+        className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-gradient-to-br ${currentMoodColors.gradient} rounded-full blur-[120px] opacity-10`} />
       <div className="relative z-10 flex flex-col items-center gap-6">
         <NeuralIcon 
           icon={Brain} 
           className="w-24 h-24 mb-4" 
           iconClassName="w-10 h-10"
-          gradient={moodColors.gradient}
+          gradient={currentMoodColors.gradient}
         />
         <p className="max-w-sm text-center text-lg font-medium tracking-wide animate-pulse">
           {loadingMessages[pathData.mood] ?? 'Generating your personalised learning path...'}
@@ -629,7 +632,7 @@ export function LearningPathView() {
         <div className="w-full max-w-xl space-y-4 mt-8">
           {[1, 2, 3].map(n => (
             <div key={n} className="space-y-3 rounded-2xl border border-border/30 bg-card/20 p-6 glass-card">
-              <div className={`h-4 w-3/4 rounded-full bg-gradient-to-r ${moodColors.gradient} opacity-20`} />
+              <div className={`h-4 w-3/4 rounded-full bg-gradient-to-r ${currentMoodColors.gradient} opacity-20`} />
               <div className="h-3 w-1/4 rounded-full bg-muted-foreground/20" />
             </div>
           ))}
@@ -652,8 +655,8 @@ export function LearningPathView() {
       MOOD_FONTS[mood] || MOOD_FONTS.default
     )}>
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <motion.div className={`absolute top-0 right-0 w-[600px] h-[600px] bg-gradient-to-br ${moodColors.gradient} rounded-full blur-3xl opacity-10 will-change-transform`} style={{ x: blobX, y: blobY }} />
-        <motion.div className={`absolute bottom-1/4 left-0 w-[400px] h-[400px] bg-gradient-to-tr ${moodColors.gradient} rounded-full blur-[100px] opacity-[0.06] will-change-transform`} style={{ x: blob2X, y: blob2Y }} />
+        <motion.div className={`absolute top-0 right-0 w-[600px] h-[600px] bg-gradient-to-br ${currentMoodColors.gradient} rounded-full blur-3xl opacity-10 will-change-transform`} style={{ x: blobX, y: blobY }} />
+        <motion.div className={`absolute bottom-1/4 left-0 w-[400px] h-[400px] bg-gradient-to-tr ${currentMoodColors.gradient} rounded-full blur-[100px] opacity-[0.06] will-change-transform`} style={{ x: blob2X, y: blob2Y }} />
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.01)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[size:64px_64px] opacity-20" />
       </div>
 
@@ -674,7 +677,7 @@ export function LearningPathView() {
         <RevealSection>
           <TiltCard className="relative overflow-hidden group mb-12 rounded-[2.5rem] border border-white/10 bg-white/5 backdrop-blur-lg">
             {/* Background Glow */}
-            <div className={cn("absolute -top-24 -right-24 w-64 h-64 blur-[100px] opacity-20 transition-all duration-1000", moodColors.gradient)} />
+            <div className={cn("absolute -top-24 -right-24 w-64 h-64 blur-[100px] opacity-20 transition-all duration-1000", currentMoodColors.gradient)} />
             
             <div className="p-10 md:p-14 relative z-10">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-10">
@@ -708,12 +711,12 @@ export function LearningPathView() {
                 </div>
 
                  <div className="hidden lg:flex items-center gap-10">
-                   <NeuralMirror 
-                     videoRef={videoRef}
-                     isActive={isCamActive}
-                     emotion={currentEmotion}
-                     confidence={confidence}
-                   />
+                    <NeuralMirror 
+                      videoRef={videoRef}
+                      isActive={isCamActive}
+                      emotion={liveEmotion}
+                      confidence={liveConfidence}
+                    />
 
                    <div className="flex items-center gap-10 bg-black/20 rounded-[2.5rem] p-10 backdrop-blur-xl">
                     <div className="text-center space-y-1">
@@ -1219,13 +1222,33 @@ export function LearningPathView() {
 // ─── Sub-Components ──────────────────────────────────────────────────────────
 
 function NeuralMirror({ videoRef, isActive, emotion, confidence }: { videoRef: React.RefObject<HTMLVideoElement>; isActive: boolean; emotion: string; confidence: number }) {
+  // Use a LOCAL ref for this video element so we don't steal the shared ref
+  // from the NeuralDock. Copy the stream from the shared videoRef instead.
+  const localVideoRef = React.useRef<HTMLVideoElement>(null);
+
+  React.useEffect(() => {
+    if (!isActive || !localVideoRef.current) return;
+    // Copy stream from the shared ref or from the srcObject
+    const srcVideo = videoRef.current;
+    if (srcVideo?.srcObject) {
+      localVideoRef.current.srcObject = srcVideo.srcObject;
+    }
+    // Also watch for when the stream gets attached later
+    const interval = setInterval(() => {
+      if (srcVideo?.srcObject && localVideoRef.current && !localVideoRef.current.srcObject) {
+        localVideoRef.current.srcObject = srcVideo.srcObject;
+      }
+    }, 500);
+    return () => clearInterval(interval);
+  }, [isActive, videoRef]);
+
   return (
     <div className="relative group">
       <div className="absolute -inset-1 bg-gradient-to-r from-primary/50 to-purple-500/50 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200" />
       <div className="relative w-48 h-32 rounded-2xl overflow-hidden bg-black/40 border border-white/10 backdrop-blur-xl">
         {isActive ? (
           <video 
-            ref={videoRef} 
+            ref={localVideoRef} 
             autoPlay 
             playsInline 
             muted 

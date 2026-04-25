@@ -29,6 +29,8 @@ interface NeuralContextType {
   videoRef: React.RefObject<HTMLVideoElement>;
   canvasRef: React.RefObject<HTMLCanvasElement>;
   audioLevel: number;
+  liveEmotion: string;
+  liveConfidence: number;
 }
 
 const NeuralContext = createContext<NeuralContextType | undefined>(undefined);
@@ -131,6 +133,12 @@ export function NeuralProvider({ children }: { children: React.ReactNode }) {
   const sendFrame = useCallback(() => {
     if (!videoRef.current || !canvasRef.current || wsRef.current?.readyState !== WebSocket.OPEN) return;
     const video = videoRef.current;
+
+    // Re-attach stream if the video element was remounted (e.g. NeuralDock open/close)
+    if (!video.srcObject && streamRef.current) {
+      video.srcObject = streamRef.current;
+    }
+
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     if (ctx && video.videoWidth > 0 && video.videoHeight > 0) {
@@ -152,9 +160,29 @@ export function NeuralProvider({ children }: { children: React.ReactNode }) {
   const startCamera = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240, facingMode: 'user' } });
-      if (videoRef.current) videoRef.current.srcObject = stream;
       streamRef.current = stream;
       setError(null);
+
+      // Wait for the video element to mount in the DOM (NeuralDock renders it
+      // conditionally when isCamActive becomes true — React may not have
+      // committed the update yet when this callback runs).
+      const waitForVideoRef = () => new Promise<void>((resolve) => {
+        let attempts = 0;
+        const check = () => {
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+            resolve();
+          } else if (attempts < 30) {
+            attempts++;
+            requestAnimationFrame(check);
+          } else {
+            resolve(); // give up waiting, sendFrame will retry
+          }
+        };
+        check();
+      });
+      await waitForVideoRef();
+
       connectWebSocket();
       frameIntervalRef.current = window.setInterval(() => { sendFrame(); }, 1000);
     } catch (err: any) {
@@ -294,11 +322,18 @@ export function NeuralProvider({ children }: { children: React.ReactNode }) {
     return () => stopMic();
   }, [isMicActive, startMic, stopMic]);
 
+  const liveEmotion = (isCamActive && currentEmotion && !currentEmotion.includes('Initializing') && (confidence >= voiceConfidence || !isMicActive))
+    ? currentEmotion 
+    : (isMicActive ? (voiceEmotion || 'Ready') : (currentEmotion || 'Initializing...'));
+    
+  const liveConfidence = Math.max(isCamActive ? (confidence || 0) : 0, isMicActive ? (voiceConfidence || 0) : 0);
+
   const value = {
     isCamActive, setIsCamActive,
     isMicActive, setIsMicActive,
     currentEmotion, confidence,
     voiceEmotion, voiceConfidence,
+    liveEmotion, liveConfidence,
     timerState, timeLeft,
     error, videoRef, canvasRef,
     audioLevel

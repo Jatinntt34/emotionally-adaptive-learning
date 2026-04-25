@@ -261,12 +261,17 @@ if facial_model is None and TF_AVAILABLE:
 
 def _pytorch_preprocess(img: np.ndarray) -> torch.Tensor:
     """Matches Albumentations.Normalize used in train_facial.py"""
-    img = img.astype(np.float32) / 255.0
-    mean = np.array([0.485, 0.456, 0.406])
-    std = np.array([0.229, 0.224, 0.225])
-    img = (img - mean) / std
-    img = img.transpose(2, 0, 1) # HWC to CHW
-    return torch.from_numpy(img).unsqueeze(0).to(FACIAL_DEVICE)
+    try:
+        img = img.astype(np.float32) / 255.0
+        mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+        std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+        img = (img - mean) / std
+        img = img.transpose(2, 0, 1) # HWC to CHW
+        # Force float32 to avoid DoubleTensor errors
+        return torch.from_numpy(img).unsqueeze(0).to(FACIAL_DEVICE).to(torch.float32)
+    except Exception as e:
+        print(f"[_pytorch_preprocess] Error: {e}")
+        raise e
 
 
 def _efficientnet_preprocess(img: np.ndarray) -> np.ndarray:
@@ -468,7 +473,7 @@ async def get_me(current_user: dict = Depends(get_current_user)):
 @app.websocket("/ws/emotion")
 async def facial_ws(websocket: WebSocket):
     await websocket.accept()
-    print(f"🚀 [Facial] Client connected")
+    print(f"[Facial] Client connected")
     _facial_ensemble.clear()
     loop = asyncio.get_event_loop()
     try:
@@ -479,8 +484,9 @@ async def facial_ws(websocket: WebSocket):
                 frame = cv2.imdecode(np.frombuffer(base64.b64decode(data), np.uint8), cv2.IMREAD_COLOR)
                 if frame is None: continue
                 
-                # Log frame received (first 50 chars of data)
-                # print(f"[Facial] Received frame {len(data)} bytes")
+                # Extract face ROI
+                roi = _detect_face_roi(frame)
+                
                 if roi is None:
                     _facial_ensemble.clear()
                     await websocket.send_json({"status": "no_face"}); continue
@@ -488,11 +494,18 @@ async def facial_ws(websocket: WebSocket):
                 emotion, conf = await loop.run_in_executor(_executor, _predict_facial_sync, roi)
 
                 status_key = "success" if conf >= 45.0 else "low_confidence"
-                print(f"📸 [Facial] Pred: {emotion} ({conf:.1f}%)")
-                await websocket.send_json({"status": status_key, "emotion": emotion,
-                                           "confidence": round(conf, 1)})
+                print(f"[Facial] Pred: {emotion} ({conf:.1f}%)")
+                try:
+                    await websocket.send_json({"status": status_key, "emotion": emotion,
+                                               "confidence": round(conf, 1)})
+                except: pass
             except Exception as e:
-                await websocket.send_json({"status": "error", "message": str(e)})
+                import traceback
+                print(f"[Facial] Error: {e}")
+                traceback.print_exc()
+                try:
+                    await websocket.send_json({"status": "error", "message": str(e)})
+                except: pass
     except WebSocketDisconnect:
         _facial_ensemble.clear()
         print("Disconnected /ws/emotion")
@@ -504,7 +517,7 @@ async def facial_ws(websocket: WebSocket):
 @app.websocket("/ws/voice")
 async def voice_ws(websocket: WebSocket):
     await websocket.accept()
-    print(f"🎤 [Voice] Client connected")
+    print(f"[Voice] Client connected")
 
     SMOOTH_N   = 3
     voice_hist = []
@@ -556,13 +569,17 @@ async def voice_ws(websocket: WebSocket):
                 else:
                     s_conf, gap = conf, 0.0
 
-                print(f"🗣️ [Voice] Pred: {smoothed} ({s_conf:.1f}%)")
+                print(f"[Voice] Pred: {smoothed} ({s_conf:.1f}%)")
                 status_key = "success" if s_conf >= 45.0 else "low_confidence"
-                await websocket.send_json({"status": status_key, "emotion": smoothed,
-                                           "confidence": round(s_conf, 1), "top2_gap": round(gap, 1)})
+                try:
+                    await websocket.send_json({"status": status_key, "emotion": smoothed,
+                                               "confidence": round(s_conf, 1), "top2_gap": round(gap, 1)})
+                except: pass
             except Exception as e:
                 print(f"  [Voice] error: {e}")
-                await websocket.send_json({"status": "error", "message": str(e)})
+                try:
+                    await websocket.send_json({"status": "error", "message": str(e)})
+                except: pass
     except WebSocketDisconnect:
         print("Disconnected /ws/voice")
 

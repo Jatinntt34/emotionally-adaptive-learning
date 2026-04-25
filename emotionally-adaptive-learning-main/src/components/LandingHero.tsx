@@ -164,7 +164,7 @@ export function LandingHero() {
           {user ? (
             <div className="flex items-center gap-4">
               <MagneticButton variant="ghost" size="sm" onClick={() => navigate('/progress')} className="text-white/60 hover:text-white h-11 px-5 border border-white/5 hover:border-white/10">
-                <User className="w-4 h-4 mr-3" /> DASHBOARD
+                <User className="w-4 h-4 mr-3" /> {"DASHBOARD"}
               </MagneticButton>
               <MagneticButton variant="glass" size="sm" onClick={signOut} className="w-11 h-11 p-0 flex items-center justify-center border border-white/5">
                 <LogOut className="w-4 h-4" />

@@ -9,6 +9,7 @@ import { useRef, useEffect } from 'react';
 import gsap from 'gsap';
 import { cn } from '@/lib/utils';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+gsap.registerPlugin(ScrollTrigger);
 
 import { RevealSection } from '@/components/ui/RevealSection';
 import { TiltCard } from '@/components/ui/TiltCard';
@@ -17,7 +18,6 @@ import { NeuralIcon } from '@/components/ui/NeuralIcon';
 
 const Index = () => {
   const { moodColors, mood } = useMood();
-  if (!moodColors) return null; // Defensive check for blank screen prevention
   const navigate = useNavigate();
   const mainRef = useRef<HTMLDivElement>(null);
   
@@ -29,6 +29,15 @@ const Index = () => {
     { icon: Sparkles, title: 'Smart Recommendations', description: 'Get personalized content suggestions based on your mood history.', insight: 'Recommendations shift with context, surfacing formats your current state is most likely to absorb.', gradient: 'from-rose-500 to-pink-400' },
     { icon: Shield, title: 'Safe Learning Space', description: 'Your emotional data is private and used only to enhance your experience.', insight: 'Trust cues remain visible so sensitive feedback feels supportive rather than invasive.', gradient: 'from-teal-500 to-cyan-400' },
   ];
+
+  useEffect(() => {
+    // Refresh ScrollTrigger to ensure correct positions after layout hydration
+    const refreshTimer = setTimeout(() => {
+      ScrollTrigger.refresh();
+    }, 500);
+
+    return () => clearTimeout(refreshTimer);
+  }, []);
 
   useEffect(() => {
     // Advanced Scroll Physics Context
@@ -166,6 +175,9 @@ const Index = () => {
       ScrollTrigger.getAll().forEach(t => t.kill());
     };
   }, []);
+
+  // Defensive check — AFTER all hooks
+  if (!moodColors) return null;
 
   return (
     <div ref={mainRef} className="min-h-screen bg-[#020205] text-foreground selection:bg-primary selection:text-primary-foreground relative overflow-hidden">
@@ -409,9 +421,9 @@ const Index = () => {
               </div>
             
             <div className="flex gap-12 text-xs font-mono uppercase tracking-widest text-white/30">
-                <a href="#" className="hover:text-primary transition-colors">Privacy</a>
-                <a href="#" className="hover:text-primary transition-colors">OSINT</a>
-                <a href="#" className="hover:text-primary transition-colors">Neural Net</a>
+                <a href="#" className="hover:text-primary transition-colors">{"Privacy"}</a>
+                <a href="#" className="hover:text-primary transition-colors">{"OSINT"}</a>
+                <a href="#" className="hover:text-primary transition-colors">{"Neural Net"}</a>
             </div>
 
             <p className="text-xs text-white/20 font-mono">(c) 2026 - AFFEX NEURAL SYSTEMS</p>
