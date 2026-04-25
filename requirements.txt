@@ -1,0 +1,46 @@
+# MoodLearn — Production Requirements
+# =====================================
+# Core backend
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+python-dotenv>=1.0.0
+python-jose[cryptography]>=3.3.0
+PyJWT>=2.8.0
+bcrypt>=4.1.2
+motor>=3.3.2
+pydantic[email]>=2.5.0
+
+# ML — Facial (TensorFlow)
+tensorflow>=2.15.0
+tensorflow-hub>=0.12.0
+
+# ML — Voice (PyTorch + HuggingFace)
+torch>=2.2.0
+torchaudio>=2.2.0
+transformers>=4.40.0
+accelerate>=0.29.0
+datasets>=2.19.0
+evaluate>=0.4.0
+safetensors>=0.4.1
+huggingface-hub>=0.22.0
+
+# Computer Vision
+opencv-python>=4.9.0
+mediapipe==0.10.18
+
+# Audio Processing
+librosa>=0.10.0
+soundfile>=0.12.1
+
+# Training Enhancements
+albumentations>=1.4.0
+scikit-learn>=1.4.0
+scikit-image>=0.22.0
+
+# Visualization
+matplotlib>=3.8.0
+seaborn>=0.13.0
+tqdm>=4.66.0
+
+# Gemini
+google-genai>=0.8.0

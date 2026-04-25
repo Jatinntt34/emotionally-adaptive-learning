@@ -6,10 +6,11 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { MoodProvider } from "@/contexts/MoodContext";
 import { ProgressProvider } from "@/contexts/ProgressContext";
 import { AuthProvider } from "@/contexts/AuthContext";
-import { MoodSwitcherFab } from "@/components/MoodSwitcherFab";
-import { IdleEngagement } from "@/components/IdleEngagement";
-import { CameraCapture } from "@/components/CameraCapture";
+import { NeuralDock } from "@/components/NeuralDock";
 import { MoodTransitionOverlay } from "@/components/MoodTransitionOverlay";
+import { EmotionPhysics } from "@/components/EmotionPhysics";
+import { NeuralProvider } from "@/contexts/NeuralContext";
+import { MoodCursor } from "@/components/MoodCursor";
 import Index from "./pages/Index";
 import CreatePath from "./pages/CreatePath";
 import LearningPath from "./pages/LearningPath";
@@ -28,18 +29,20 @@ const App = () => (
             <Toaster />
             <Sonner />
             <BrowserRouter>
-              <MoodTransitionOverlay />
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/auth" element={<Auth />} />
-                <Route path="/create-path" element={<CreatePath />} />
-                <Route path="/learning-path" element={<LearningPath />} />
-                <Route path="/progress" element={<Progress />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-              <MoodSwitcherFab />
-              <IdleEngagement />
-              <CameraCapture />
+              <NeuralProvider>
+                <MoodCursor />
+                <EmotionPhysics />
+                <MoodTransitionOverlay />
+                <Routes>
+                  <Route path="/" element={<Index />} />
+                  <Route path="/auth" element={<Auth />} />
+                  <Route path="/create-path" element={<CreatePath />} />
+                  <Route path="/learning-path" element={<LearningPath />} />
+                  <Route path="/progress" element={<Progress />} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+                <NeuralDock />
+              </NeuralProvider>
             </BrowserRouter>
           </TooltipProvider>
         </ProgressProvider>
@@ -49,3 +52,5 @@ const App = () => (
 );
 
 export default App;
+
+

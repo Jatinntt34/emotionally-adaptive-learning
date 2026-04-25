@@ -1,4 +1,21 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=Manrope:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@300;400;500;600;700&family=Syncopate:wght@400;700&family=Syne:wght@400;500;600;700;800&display=swap');
+
+@layer utilities {
+  .font-energetic { font-family: 'Syne', sans-serif !important; }
+  .font-calm { font-family: 'Outfit', sans-serif !important; }
+  .font-focused { font-family: 'JetBrains Mono', monospace !important; }
+  .font-creative { font-family: 'Space Grotesk', sans-serif !important; }
+  .font-syncopate { font-family: 'Syncopate', sans-serif !important; }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+::selection {
+  background: hsl(var(--primary) / 0.3);
+  color: hsl(var(--foreground));
+}
 
 @tailwind base;
 @tailwind components;
@@ -17,6 +34,7 @@
     --popover-foreground: 210 40% 98%;
 
     --primary: 25 95% 53%;
+    --primary-rgb: 249, 115, 22;
     --primary-foreground: 210 40% 98%;
 
     --secondary: 222 47% 14%;
@@ -26,6 +44,7 @@
     --muted-foreground: 215 20% 65%;
 
     --accent: 222 47% 18%;
+    --accent-rgb: 30, 41, 59;
     --accent-foreground: 210 40% 98%;
 
     --destructive: 0 84% 60%;
@@ -213,6 +232,42 @@
     transition: box-shadow 0.5s ease;
   }
 
+  .neural-card-glow {
+    position: relative;
+    box-shadow:
+      0 24px 60px rgba(0, 0, 0, 0.28),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      inset 0 -24px 40px rgba(255, 255, 255, 0.02);
+    backdrop-filter: blur(24px);
+    transition: transform 0.5s ease, box-shadow 0.5s ease, border-color 0.5s ease;
+  }
+
+  .neural-card-glow::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background:
+      linear-gradient(145deg, rgba(255,255,255,0.24), rgba(255,255,255,0.02) 35%, rgba(255,255,255,0.12) 68%, rgba(255,255,255,0.02));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0.8;
+    pointer-events: none;
+  }
+
+  .neural-card-glow:hover {
+    transform: translateY(-6px);
+    border-color: hsl(var(--primary) / 0.28);
+    box-shadow:
+      0 32px 70px rgba(0, 0, 0, 0.38),
+      0 0 0 1px hsl(var(--primary) / 0.08),
+      0 0 42px hsl(var(--primary) / 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+
   .mood-energetic .glow-effect { box-shadow: var(--glow-energetic); }
   .mood-calm .glow-effect { box-shadow: var(--glow-calm); }
   .mood-focused .glow-effect { box-shadow: var(--glow-focused); }
@@ -288,6 +343,11 @@
     animation: text-shimmer 5s ease-in-out infinite;
   }
 
+  .animate-gradient-liquid {
+    background-size: 200% auto;
+    animation: gradient-liquid 4s ease infinite;
+  }
+
   .animate-border-glow {
     animation: border-glow 3s ease-in-out infinite;
   }
@@ -317,6 +377,23 @@
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
+}
+
+@keyframes gradient-liquid {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes reverse-spin {
+  from { transform: rotate(360deg); }
+  to { transform: rotate(0deg); }
+}
+
+@keyframes data-stream {
+  0% { transform: translateY(-100%); opacity: 0; }
+  50% { opacity: 0.5; }
+  100% { transform: translateY(100%); opacity: 0; }
 }
 
 @keyframes slide-up {
@@ -355,6 +432,19 @@
   100% { transform: translateX(-50%); }
 }
 
+.animate-gradient-liquid {
+  background-size: 200% 200%;
+  animation: gradient-liquid 8s ease infinite;
+}
+
+.animate-reverse-spin-slow {
+  animation: reverse-spin 20s linear infinite;
+}
+
+.animate-data-stream {
+  animation: data-stream 3s linear infinite;
+}
+
 /* Scrollbar Styling */
 ::-webkit-scrollbar {
   width: 6px;
@@ -372,3 +462,13 @@
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--primary) / 0.6);
 }
+
+/* 
+   Mood-Adaptive Cursor - Refined Arrow
+   Default cursor is hidden; a custom React
+   component renders a sharp, colored arrow
+   with a trailing glow.
+*/
+
+
+

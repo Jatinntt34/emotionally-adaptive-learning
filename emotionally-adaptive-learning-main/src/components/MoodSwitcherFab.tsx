@@ -1,7 +1,9 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMood, moodConfig, MoodType } from '@/contexts/MoodContext';
 import { useState, useCallback } from 'react';
+import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { MoodIcon } from './ui/MoodIcon';
 
 export function MoodSwitcherFab() {
   const { mood, setMood, moodColors } = useMood();
@@ -38,8 +40,8 @@ export function MoodSwitcherFab() {
               {/* Header */}
               <div className="flex items-center justify-between mb-3 px-1">
                 <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Switch Mood</span>
-                <span className={`text-xs font-bold px-2 py-0.5 rounded-full bg-gradient-to-r ${moodColors.gradient} text-foreground`}>
-                  {moodColors.emoji} {moodColors.label}
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-full bg-gradient-to-r ${moodColors.gradient} text-foreground flex items-center gap-1.5`}>
+                  <MoodIcon mood={mood} size="xs" /> {moodColors.label}
                 </span>
               </div>
 
@@ -67,7 +69,7 @@ export function MoodSwitcherFab() {
                     )}
                     title={config.label}
                   >
-                    <span className="text-lg filter drop-shadow-md">{config.emoji}</span>
+                    <MoodIcon mood={moodType} size="sm" className="filter drop-shadow-md" />
                     <span className={cn(
                       'text-[9px] font-medium leading-none',
                       mood === moodType ? 'text-foreground' : 'text-muted-foreground'
@@ -116,7 +118,7 @@ export function MoodSwitcherFab() {
           animate={!isOpen ? { scale: [1, 1.15, 1] } : {}}
           transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
         >
-          {isOpen ? '✕' : moodColors.emoji}
+          {isOpen ? <X className="w-6 h-6" /> : <MoodIcon mood={mood} size="md" />}
         </motion.span>
 
         {/* Pulsing ring */}
@@ -134,3 +136,5 @@ export function MoodSwitcherFab() {
     </div>
   );
 }
+
+

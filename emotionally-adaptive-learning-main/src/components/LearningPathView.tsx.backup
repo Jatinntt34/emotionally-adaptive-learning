@@ -118,7 +118,7 @@ function InlineQuiz({
                 ok ? 'border-green-500/30 bg-green-500/5' : 'border-red-500/30 bg-red-500/5')}>
                 <p className="font-medium text-foreground mb-1">{qq.question}</p>
                 <p className={ok ? 'text-green-400' : 'text-red-400'}>
-                  {ok ? '✓' : '✗'} You answered: {qq.options[userAns]}
+                  {ok ? '✓' : '�-'} You answered: {qq.options[userAns]}
                 </p>
                 {!ok && <p className="text-green-400 text-xs mt-0.5">Correct: {qq.options[qq.correctAnswer]}</p>}
                 <p className="text-muted-foreground text-xs mt-1 italic">{qq.explanation}</p>
@@ -186,7 +186,7 @@ function InlineQuiz({
                 ? 'border-green-500/30 bg-green-500/5 text-green-300'
                 : 'border-red-500/30  bg-red-500/5  text-red-300')}>
             <span className="font-semibold mr-1">
-              {s.selectedAnswer === q.correctAnswer ? '✓ Correct!' : '✗ Not quite.'}
+              {s.selectedAnswer === q.correctAnswer ? '✓ Correct!' : '�- Not quite.'}
             </span>
             {q.explanation}
           </motion.div>
@@ -720,3 +720,5 @@ export function LearningPathView() {
     </div>
   );
 }
+
+

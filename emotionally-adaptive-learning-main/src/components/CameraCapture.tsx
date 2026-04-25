@@ -16,6 +16,18 @@ const EMOTION_TO_MOOD: Record<string, MoodType> = {
   surprise: 'curious'
 };
 
+const NEURAL_PROMPTS = [
+  "I'm really enjoying this topic!",
+  "Can you explain this part again?",
+  "I feel ready for the next level.",
+  "This concept is a bit challenging.",
+  "Show me something more advanced."
+];
+
+const TARGET_SR = 16000;
+const WS_URL = `ws://127.0.0.1:8000/ws/emotion`;
+const VOICE_WS_URL = `ws://127.0.0.1:8000/ws/voice`;
+
 export function CameraCapture() {
   const location = useLocation();
   const { setMood, setDetectedRawEmotion } = useMood();
@@ -28,6 +40,16 @@ export function CameraCapture() {
   const [isMicActive, setIsMicActive] = useState(false);
   const [voiceEmotion, setVoiceEmotion] = useState<string>('Listening...');
   const [voiceConfidence, setVoiceConfidence] = useState<number>(0);
+  const [activePromptIdx, setActivePromptIdx] = useState(0);
+
+  useEffect(() => {
+    if (isMicActive) {
+      const interval = setInterval(() => {
+        setActivePromptIdx(prev => (prev + 1) % NEURAL_PROMPTS.length);
+      }, 8000);
+      return () => clearInterval(interval);
+    }
+  }, [isMicActive]);
   const voiceWsRef = useRef<WebSocket | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -63,7 +85,7 @@ export function CameraCapture() {
   const connectWebSocket = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
     try {
-      const ws = new WebSocket('ws://127.0.0.1:8000/ws/emotion');
+      const ws = new WebSocket(WS_URL);
       ws.onopen = () => { setError(null); };
       ws.onmessage = (event) => {
         try {
@@ -210,7 +232,7 @@ export function CameraCapture() {
       const actx = new AudioCtxClass();
       audioCtxRef.current = actx;
       const nativeSR = actx.sampleRate;
-      const TARGET_SR = 22050;
+      // TARGET_SR updated to 16000 to match backend wav2vec2 model
 
       // Capture raw audio samples continuously
       const source = actx.createMediaStreamSource(stream);
@@ -227,7 +249,7 @@ export function CameraCapture() {
       // Connect voice WebSocket
       voiceWsRef.current = connectVoiceWs();
 
-      // Every 5 seconds: merge chunks, resample to 22050, send to backend
+      // Every 5 seconds: merge chunks, resample to 16000, send to backend
       // 5s gives the model ~5 seconds of speech context instead of 3s,
       // producing more stable MFCC features and better emotion accuracy.
       voiceSendIntervalRef.current = window.setInterval(async () => {
@@ -252,7 +274,7 @@ export function CameraCapture() {
         voiceChunksRef.current = [];
         voiceTotalLenRef.current = 0;
 
-        // Resample to 22050 Hz
+        // Resample to 16000 Hz
         let toSend: Float32Array;
         try {
           const targetLen = Math.max(1, Math.floor(merged.length * TARGET_SR / nativeSR));
@@ -308,7 +330,35 @@ export function CameraCapture() {
   if (location.pathname === '/create-path') return null;
 
   return (
-    <div className="fixed bottom-6 left-6 z-50 flex flex-col items-start gap-2">
+    <div className="fixed bottom-6 left-6 z-50 flex flex-col items-start gap-4 pointer-events-none max-w-[280px]">
+      
+      {/* Permanent Instruction HUD — Always Visible */}
+      <motion.div
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        className="pointer-events-auto bg-card/40 backdrop-blur-sm border border-primary/10 p-3 rounded-2xl w-full will-change-transform"
+      >
+        <div className="flex items-center gap-2 mb-2 px-1">
+          <ScanFace className="w-3 h-3 text-primary/60" />
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-primary/60 font-mono">Neural Commands</span>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          {NEURAL_PROMPTS.map((prompt, idx) => (
+            <motion.button
+              key={idx}
+              whileHover={{ x: 4, backgroundColor: "hsl(var(--primary) / 0.1)" }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => {
+                if (!isMicActive) toggleMic();
+                // We could simulate voice here, but for now we just activate the mic
+              }}
+              className="text-left text-[10px] py-1.5 px-2.5 rounded-lg border border-transparent hover:border-primary/20 transition-all text-muted-foreground hover:text-primary font-medium"
+            >
+              {prompt}
+            </motion.button>
+          ))}
+        </div>
+      </motion.div>
 
       {/* Camera feed panel */}
       <AnimatePresence>
@@ -317,7 +367,7 @@ export function CameraCapture() {
             initial={{ opacity: 0, y: 20, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.95 }}
-            className="bg-card text-card-foreground p-3 rounded-2xl shadow-xl border border-border/50 flex flex-col items-center gap-2 backdrop-blur-md bg-opacity-90 min-w-[200px]"
+            className="pointer-events-auto bg-card text-card-foreground p-3 rounded-2xl shadow-xl border border-border/50 flex flex-col items-center gap-2 backdrop-blur-sm bg-opacity-90 min-w-[200px] will-change-transform"
           >
             <div className="relative rounded-lg overflow-hidden w-full h-[120px] bg-black/20 border border-border/50 flex items-center justify-center">
               <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover transform -scale-x-100" />
@@ -358,7 +408,7 @@ export function CameraCapture() {
             initial={{ opacity: 0, y: 20, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.95 }}
-            className="bg-card text-card-foreground p-3 rounded-2xl shadow-xl border border-border/50 backdrop-blur-md min-w-[200px]"
+            className="pointer-events-auto bg-card text-card-foreground p-3 rounded-2xl shadow-xl border border-border/50 backdrop-blur-sm min-w-[200px] will-change-transform"
           >
             <div className="flex items-center gap-3">
               {/* Mic indicator */}
@@ -390,6 +440,31 @@ export function CameraCapture() {
                 </div>
               )}
             </div>
+
+            {/* Visual Waveform (Simulated) */}
+            <div className="mt-3 flex items-end gap-[2px] h-4 px-1">
+              {[...Array(12)].map((_, i) => (
+                <motion.div
+                  key={i}
+                  animate={{ 
+                    height: [4, Math.random() * 16 + 4, 4],
+                  }}
+                  transition={{ 
+                    duration: 0.5 + Math.random() * 0.5, 
+                    repeat: Infinity,
+                    ease: "easeInOut"
+                  }}
+                  className="w-1 bg-primary/40 rounded-full"
+                />
+              ))}
+            </div>
+
+            {/* Listening state indicator */}
+            <div className="mt-3 py-2 px-3 bg-primary/5 rounded-xl border border-primary/10">
+              <p className="text-[10px] text-primary/60 font-medium italic">
+                Listening for your response...
+              </p>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -410,7 +485,7 @@ export function CameraCapture() {
       </AnimatePresence>
 
       {/* Control buttons */}
-      <div className="flex gap-2 items-center">
+      <div className="flex gap-2 items-center pointer-events-auto">
         {/* Camera toggle */}
         <motion.button
           whileHover={{ scale: 1.05 }}
@@ -444,3 +519,5 @@ export function CameraCapture() {
     </div>
   );
 }
+
+

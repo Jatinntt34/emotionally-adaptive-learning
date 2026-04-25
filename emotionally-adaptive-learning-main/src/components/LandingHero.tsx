@@ -1,41 +1,33 @@
-import { motion, useScroll, useTransform, useMotionValue, useSpring } from 'framer-motion';
-import { Button } from '@/components/ui/button';
-import { Brain, Sparkles, Zap, Heart, BookOpen, Target, Shield, LogIn, LogOut, User, Layers, Activity } from 'lucide-react';
+import { motion, useScroll } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { useMood, moodConfig, MoodType } from '@/contexts/MoodContext';
+import { useMood } from '@/contexts/MoodContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { useRef, useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
+import { EmotionCore } from './EmotionCore';
+import { cn } from '@/lib/utils';
+import { MagneticButton } from '@/components/ui/MagneticButton';
+import { Zap, User, LogOut } from 'lucide-react';
+import { NeuralIcon } from './ui/NeuralIcon';
 
-// ── Typewriter with mood-adaptive word list ──
+// ── Typewriter ──
 function TypewriterText({ className }: { className?: string }) {
-  const { moodColors } = useMood();
-  // Each mood contributes contextual words to the typewriter cycle
   const moodWords: Record<string, string[]> = {
-    energetic: ['Energy', 'Power', 'Drive'],
-    calm: ['Peace', 'Serenity', 'Flow'],
-    focused: ['Precision', 'Clarity', 'Purpose'],
-    creative: ['Imagination', 'Vision', 'Wonder'],
-    motivated: ['Ambition', 'Goals', 'Hustle'],
-    sad: ['Comfort', 'Hope', 'Warmth'],
-    anxious: ['Calm', 'Breath', 'Safety'],
-    bored: ['Curiosity', 'Spark', 'Surprise'],
-    unmotivated: ['Momentum', 'Start', 'Growth'],
-    curious: ['Discovery', 'Questions', 'Exploration'],
+    energetic: ['Unlimited Energy', 'Peak Performance', 'Hyper Growth'],
+    calm: ['Peaceful Flow', 'Deep Focus', 'Silent Progress'],
+    focused: ['Laser Clarity', 'Mindful Depth', 'Pure Logic'],
+    creative: ['Infinite Vision', 'Boundless Ideas', 'Artful Learning'],
+    motivated: ['Unyielding Drive', 'Daily Victory', 'Goal Mastery'],
+    sad: ['Healing Peace', 'Gentle Support', 'Quiet Resilience'],
+    anxious: ['Safe Harbor', 'Calm Rhythms', 'Mindful Ease'],
+    bored: ['Neon Sparks', 'Hidden Wonders', 'Curious Turns'],
+    unmotivated: ['Tiny Wins', 'Small Steps', 'Gentle Momentum'],
+    curious: ['Secret Paths', 'Deep Questions', 'Infinite "Why"'],
   };
-
   const { mood } = useMood();
   const texts = moodWords[mood] || moodWords.energetic;
-
   const [currentIndex, setCurrentIndex] = useState(0);
   const [displayed, setDisplayed] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
-
-  // Reset typewriter when mood changes
-  useEffect(() => {
-    setCurrentIndex(0);
-    setDisplayed('');
-    setIsDeleting(false);
-  }, [mood]);
 
   useEffect(() => {
     const current = texts[currentIndex];
@@ -43,91 +35,41 @@ function TypewriterText({ className }: { className?: string }) {
     const timeout = setTimeout(() => {
       if (!isDeleting) {
         setDisplayed(current.slice(0, displayed.length + 1));
-        if (displayed.length === current.length) {
-          setTimeout(() => setIsDeleting(true), 2000);
-        }
+        if (displayed.length === current.length) setTimeout(() => setIsDeleting(true), 3000);
       } else {
         setDisplayed(current.slice(0, displayed.length - 1));
-        if (displayed.length === 0) {
-          setIsDeleting(false);
-          setCurrentIndex((prev) => (prev + 1) % texts.length);
-        }
+        if (displayed.length === 0) { setIsDeleting(false); setCurrentIndex((p) => (p + 1) % texts.length); }
       }
-    }, isDeleting ? 40 : 80);
+    }, isDeleting ? 30 : 60);
     return () => clearTimeout(timeout);
   }, [displayed, isDeleting, currentIndex, texts]);
 
   return (
     <span className={className}>
       {displayed}
-      <motion.span
-        animate={{ opacity: [1, 0] }}
-        transition={{ duration: 0.5, repeat: Infinity }}
-        className="inline-block w-[3px] h-[1em] bg-primary ml-1 align-middle"
-      />
+      <motion.span animate={{ opacity: [1, 0] }} transition={{ duration: 0.5, repeat: Infinity }}
+        className="inline-block w-[4px] h-[0.9em] bg-primary ml-2 align-middle rounded-full" />
     </span>
   );
 }
 
-// ── Marquee strip ──
-function MarqueeStrip() {
-  const items = ['Emotion AI', '✦', 'Adaptive Learning', '✦', 'Real-time Detection', '✦', 'Personalized Paths', '✦', 'Progress Tracking', '✦', 'Smart Pacing', '✦'];
+// ── Living Canvas Background ──
+function AnimatedLivingCanvas({ primaryColor }: { primaryColor: string }) {
   return (
-    <div className="overflow-hidden py-4 border-y border-border/30 bg-card/30 backdrop-blur-sm">
-      <div className="flex gap-8 animate-[marquee_30s_linear_infinite] whitespace-nowrap">
-        {[...items, ...items].map((item, i) => (
-          <span key={i} className={`text-sm font-medium ${item === '✦' ? 'text-primary' : 'text-muted-foreground'}`}>
-            {item}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ── 3D Tilt Card ──
-function TiltCard({ children, className }: { children: React.ReactNode; className?: string }) {
-  const cardRef = useRef<HTMLDivElement>(null);
-  const [transform, setTransform] = useState('perspective(800px) rotateX(0deg) rotateY(0deg)');
-  const [glare, setGlare] = useState({ x: 50, y: 50, opacity: 0 });
-
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!cardRef.current) return;
-    const rect = cardRef.current.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width;
-    const y = (e.clientY - rect.top) / rect.height;
-    const rotateY = (x - 0.5) * 12;
-    const rotateX = (0.5 - y) * 12;
-    setTransform(`perspective(800px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.03, 1.03, 1.03)`);
-    setGlare({ x: x * 100, y: y * 100, opacity: 0.15 });
-  }, []);
-
-  const handleMouseLeave = useCallback(() => {
-    setTransform('perspective(800px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)');
-    setGlare({ x: 50, y: 50, opacity: 0 });
-  }, []);
-
-  return (
-    <div
-      ref={cardRef}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-      className={className}
-      style={{
-        transform,
-        transition: 'transform 0.15s ease-out',
-        transformStyle: 'preserve-3d',
-      }}
-    >
-      {children}
-      {/* Glare effect */}
-      <div
-        className="absolute inset-0 pointer-events-none rounded-[inherit] z-10"
-        style={{
-          background: `radial-gradient(circle at ${glare.x}% ${glare.y}%, rgba(255,255,255,${glare.opacity}), transparent 60%)`,
-          transition: 'background 0.15s ease-out',
-        }}
+    <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+      <motion.div
+        animate={{ scale: [1, 1.15, 1], rotate: [0, 60, 0], x: ['-5%', '5%', '-5%'], y: ['-5%', '5%', '-5%'] }}
+        transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
+        className="absolute top-[-20%] left-[-20%] w-[140%] h-[140%] opacity-30 blur-[140px]"
+        style={{ background: `radial-gradient(circle at 30% 30%, ${primaryColor}, transparent 50%), radial-gradient(circle at 70% 70%, ${primaryColor}, transparent 50%)` }}
       />
+      <motion.div
+        animate={{ scale: [1.1, 1, 1.1], rotate: [0, -45, 0], x: ['10%', '-10%', '10%'], y: ['5%', '-5%', '5%'] }}
+        transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
+        className="absolute top-[-10%] left-[-10%] w-[120%] h-[120%] opacity-15 blur-[160px]"
+        style={{ background: `radial-gradient(circle at 60% 40%, rgba(124, 77, 255, 0.4), transparent 60%)` }}
+      />
+      <div className="absolute inset-0 noise-overlay opacity-20 mix-blend-overlay" />
     </div>
   );
 }
@@ -136,283 +78,107 @@ export function LandingHero() {
   const navigate = useNavigate();
   const { moodColors, mood } = useMood();
   const { user, signOut } = useAuth();
-  const heroRef = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({ target: heroRef, offset: ['start start', 'end start'] });
-  const heroOpacity = useTransform(scrollYProgress, [0, 0.5], [1, 0]);
-  const heroScale = useTransform(scrollYProgress, [0, 0.5], [1, 0.95]);
 
-  const speed = moodColors.transitionSpeed;
-
-  // ── Mouse-tracking parallax for background blobs ──
-  const mouseX = useMotionValue(0);
-  const mouseY = useMotionValue(0);
-  const smoothX = useSpring(mouseX, { stiffness: 50, damping: 30 });
-  const smoothY = useSpring(mouseY, { stiffness: 50, damping: 30 });
-
+  const [navScrolled, setNavScrolled] = useState(false);
+  const { scrollY } = useScroll();
   useEffect(() => {
-    const handleMove = (e: MouseEvent) => {
-      const x = (e.clientX / window.innerWidth - 0.5) * 2;
-      const y = (e.clientY / window.innerHeight - 0.5) * 2;
-      mouseX.set(x);
-      mouseY.set(y);
-    };
-    window.addEventListener('mousemove', handleMove);
-    return () => window.removeEventListener('mousemove', handleMove);
-  }, [mouseX, mouseY]);
-
-  // Derived transforms for different parallax layers
-  const blob1X = useTransform(smoothX, [-1, 1], [-40, 40]);
-  const blob1Y = useTransform(smoothY, [-1, 1], [-30, 30]);
-  const blob2X = useTransform(smoothX, [-1, 1], [30, -30]);
-  const blob2Y = useTransform(smoothY, [-1, 1], [20, -20]);
-  const gridX = useTransform(smoothX, [-1, 1], [-10, 10]);
-  const gridY = useTransform(smoothY, [-1, 1], [-8, 8]);
-
-  const scrollToFeatures = () => {
-    document.getElementById('features-section')?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  const moodPreviews: { mood: MoodType; x: number; y: number }[] = [
-    { mood: 'energetic', x: -280, y: -120 },
-    { mood: 'calm', x: 280, y: -80 },
-    { mood: 'focused', x: -240, y: 100 },
-    { mood: 'creative', x: 260, y: 120 },
-  ];
+    return scrollY.on('change', (v) => setNavScrolled(v > 80));
+  }, [scrollY]);
 
   return (
-    <section ref={heroRef} className="relative min-h-screen flex flex-col justify-center overflow-hidden">
-      {/* Auth buttons */}
-      <div className="absolute top-6 right-6 z-20 flex items-center gap-3">
-        {user ? (
-          <>
-            <Button variant="ghost" size="sm" onClick={() => navigate('/progress')} className="glass-card border-none">
-              <User className="w-4 h-4 mr-1" />
-              {user.email?.split('@')[0]}
-            </Button>
-            <Button variant="ghost" size="sm" onClick={signOut} className="glass-card border-none">
-              <LogOut className="w-4 h-4" />
-            </Button>
-          </>
-        ) : (
-          <Button variant="glass" size="sm" onClick={() => navigate('/auth')} className="group">
-            <LogIn className="w-4 h-4 mr-1 group-hover:rotate-12 transition-transform" />
-            Sign In
-          </Button>
-        )}
+    <div className="relative min-h-screen font-sans flex flex-col items-center justify-center overflow-hidden">
+      {/* Background Layer */}
+      <div className="absolute inset-0 z-0">
+        <div className="absolute inset-0 bg-background" />
+        <AnimatedLivingCanvas primaryColor={moodColors.primary} />
       </div>
 
-      {/* Logo */}
-      <motion.div
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        className="absolute top-6 left-6 z-20 flex items-center gap-2"
-      >
-        <div className={`w-9 h-9 rounded-lg bg-gradient-to-br ${moodColors.gradient} flex items-center justify-center transition-all duration-700`}>
-          <Brain className="w-5 h-5 text-foreground" />
+      {/* Hero Content - Stable and Centered */}
+      <div className="relative z-10 flex flex-col items-center justify-center text-center px-6 max-w-5xl mx-auto py-20">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.8 }} 
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 1, ease: "easeOut" }} 
+          className="mb-10"
+        >
+          <EmotionCore />
+        </motion.div>
+
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }} 
+          animate={{ opacity: 1, y: 0 }} 
+          transition={{ delay: 0.3 }}
+          className="inline-block px-5 py-2 rounded-full bg-white/5 border border-white/10 text-primary text-[10px] sm:text-xs font-mono uppercase tracking-[0.3em] mb-10"
+        >
+          Neural Sync: {mood.toUpperCase()} MODE ACTIVE
+        </motion.div>
+
+        <h1 className="font-display text-7xl md:text-[8rem] font-black mb-8 leading-[0.9] tracking-tighter">
+          THE ART OF <br />
+          <span className={`bg-gradient-to-r ${moodColors.gradient} bg-clip-text text-transparent animate-gradient-liquid`}>FOCUS</span>
+        </h1>
+
+        <div className="h-10 mb-8 font-black">
+          <TypewriterText className="font-mono text-lg md:text-xl text-white/40 tracking-[0.2em] uppercase" />
         </div>
-        <span className="font-display font-bold text-lg">MoodLearn</span>
-      </motion.div>
 
-      {/* ── Mouse-Tracking Animated Background ── */}
-      <div className="absolute inset-0 overflow-hidden noise-overlay">
-        {/* Primary glow blob - follows mouse */}
-        <motion.div
-          className={`absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-gradient-to-r ${moodColors.gradient} rounded-full blur-[120px] transition-colors duration-1000`}
-          style={{ x: blob1X, y: blob1Y }}
-          animate={{ opacity: [0.12, 0.25, 0.12], scale: [1, 1.15, 1] }}
-          transition={{ duration: 8 * speed, repeat: Infinity, ease: 'easeInOut' }}
-        />
-        {/* Secondary glow blob - inverse parallax */}
-        <motion.div
-          className={`absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-gradient-to-l ${moodColors.gradient} rounded-full blur-[100px] transition-colors duration-1000`}
-          style={{ x: blob2X, y: blob2Y }}
-          animate={{ opacity: [0.08, 0.18, 0.08], scale: [1.1, 0.9, 1.1] }}
-          transition={{ duration: 10 * speed, repeat: Infinity, ease: 'easeInOut' }}
-        />
-        {/* Radial center glow */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-gradient-radial from-primary/8 via-transparent to-transparent rounded-full transition-colors duration-1000" />
+        <p className="text-xl md:text-2xl text-white/40 max-w-3xl mx-auto leading-relaxed font-light mb-16">
+          Affex is a living environment where your neural state dictates the rhythm of learning. 
+          The architecture of focus, redefined by your emotion.
+        </p>
 
-        {/* Grid Pattern - subtle mouse parallax */}
-        <motion.div
-          className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.015)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:80px_80px]"
-          style={{ x: gridX, y: gridY }}
-        />
-
-        {/* Floating mood orbs with mouse influence */}
-        <div className="hidden md:block">
-          {moodPreviews.map(({ mood: m, x, y }, i) => (
-            <motion.div
-              key={m}
-              className="absolute left-1/2 top-1/2"
-              initial={{ opacity: 0 }}
-              animate={{
-                opacity: [0.15, 0.35, 0.15],
-                x: [x, x + 20, x],
-                y: [y, y - 15, y],
-              }}
-              transition={{ duration: (6 + i * 1.5) * speed, repeat: Infinity, ease: 'easeInOut', delay: i * 0.8 }}
-            >
-              <motion.div
-                className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${moodConfig[m].gradient} blur-sm transition-colors duration-700`}
-                style={{
-                  x: useTransform(smoothX, [-1, 1], [-15 * (i + 1), 15 * (i + 1)]),
-                  y: useTransform(smoothY, [-1, 1], [-10 * (i + 1), 10 * (i + 1)]),
-                }}
-              />
-            </motion.div>
-          ))}
-        </div>
+        <motion.div 
+          animate={{ y: [0, 15, 0], opacity: [0.3, 0.6, 0.3] }} 
+          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+          className="hero-scroll-indicator absolute bottom-10 flex flex-col items-center gap-4"
+        >
+          <span className="text-[10px] font-mono tracking-[0.5em] uppercase text-white/50">Initiate Scroll</span>
+          <div className="w-px h-16 bg-gradient-to-b from-primary via-white/10 to-transparent" />
+        </motion.div>
       </div>
 
-      <motion.div style={{ opacity: heroOpacity, scale: heroScale }} className="relative z-10 container mx-auto px-6 py-20">
-        <div className="max-w-5xl mx-auto text-center">
-          {/* Badge */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-primary/10 border border-primary/20 backdrop-blur-sm mb-8 glow-border transition-colors duration-700"
-          >
-            <motion.div animate={{ rotate: [0, 360] }} transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}>
-              <Sparkles className="w-4 h-4 text-primary" />
-            </motion.div>
-            <span className="text-sm font-medium text-primary">AI-Powered Adaptive Learning</span>
-          </motion.div>
-
-          {/* ── Main Heading with TYPEWRITER restored ── */}
-          <motion.h1
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.1 }}
-            className="font-display text-5xl md:text-7xl lg:text-8xl font-extrabold mb-6 leading-[0.95] tracking-tight"
-          >
-            Learn with Your{' '}
-            <br className="hidden md:block" />
-            <TypewriterText
-              className={`bg-gradient-to-r ${moodColors.gradient} bg-clip-text text-transparent transition-all duration-700`}
-            />
-          </motion.h1>
-
-          {/* Subtitle — mood-adaptive tone */}
-          <motion.p
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="text-lg md:text-xl text-muted-foreground mb-4 max-w-2xl mx-auto leading-relaxed"
-          >
-            Experience personalized learning paths that adapt to your mood,
-            energy levels, and emotional state for <strong>maximum retention</strong>.
-          </motion.p>
-
-          {/* ── Motivational quote — changes with mood ── */}
-          <motion.p
-            key={`quote-${mood}`}
-            initial={{ opacity: 0, y: 5 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="text-sm text-primary/60 italic mb-12 font-medium transition-colors duration-700"
-          >
-            "{moodColors.motivationalQuote}"
-          </motion.p>
-
-          {/* CTA Buttons — labels adapt per mood */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.3 }}
-            className="flex flex-col sm:flex-row gap-4 justify-center"
-          >
-            <Button
-              variant="hero"
-              size="xl"
-              onClick={() => navigate('/create-path')}
-              className={`group relative overflow-hidden transition-all duration-500`}
-            >
-              <span className="relative z-10 flex items-center gap-2">
-                <Zap className="w-5 h-5 group-hover:animate-pulse" />
-                {moodColors.ctaLabel}
-                <motion.span
-                  animate={{ x: [0, 4, 0] }}
-                  transition={{ duration: 1.5, repeat: Infinity }}
-                >
-                  →
-                </motion.span>
-              </span>
-            </Button>
-            <Button variant="glass" size="xl" onClick={scrollToFeatures} className="group">
-              <Layers className="w-4 h-4 mr-2 group-hover:rotate-12 transition-transform" />
-              {moodColors.ctaSecondaryLabel}
-            </Button>
-          </motion.div>
-
-          {/* Stats Row with 3D Tilt Cards */}
-          <motion.div
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.5 }}
-            className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-4"
-          >
-            {[
-              { value: '10', label: 'Mood Modes', icon: Brain, color: 'from-orange-500 to-amber-400' },
-              { value: 'AI', label: 'Emotion Detection', icon: Activity, color: 'from-blue-500 to-cyan-400' },
-              { value: '3', label: 'Content Formats', icon: BookOpen, color: 'from-green-500 to-emerald-400' },
-              { value: '100%', label: 'Personalized', icon: Target, color: 'from-purple-500 to-pink-400' },
-            ].map((stat, i) => (
-              <TiltCard
-                key={stat.label}
-                className="glass-card-hover rounded-2xl p-5 text-center glow-border cursor-default relative overflow-hidden"
-              >
-                <div className={`w-10 h-10 mx-auto rounded-xl bg-gradient-to-br ${stat.color} flex items-center justify-center mb-3`}>
-                  <stat.icon className="w-5 h-5 text-foreground" />
-                </div>
-                <p className="font-display text-2xl font-bold stat-number">{stat.value}</p>
-                <p className="text-muted-foreground text-xs mt-0.5">{stat.label}</p>
-              </TiltCard>
-            ))}
-          </motion.div>
-
-          {/* How It Works with 3D Tilt Cards */}
-          <motion.div
-            initial={{ opacity: 0, y: 40 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.7 }}
-            className="mt-20"
-          >
-            <h3 className="font-display text-2xl font-semibold mb-10 text-muted-foreground flex items-center justify-center gap-3">
-              <div className="h-px w-12 bg-border" />
-              How It Works
-              <div className="h-px w-12 bg-border" />
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
-              {/* Connector lines */}
-              <div className="hidden md:block absolute top-12 left-[33%] right-[33%] h-px bg-gradient-to-r from-primary/30 via-primary/50 to-primary/30 transition-colors duration-700" />
-
-              {[
-                { icon: Heart, title: '1. Share Your Mood', desc: 'Tell us how you feel or let our AI detect your emotional state via camera & mic.', gradient: 'from-rose-500 to-pink-500' },
-                { icon: Zap, title: '2. Get Adaptive Content', desc: 'Receive a personalized curriculum with videos, articles, or both — tuned to your energy.', gradient: 'from-amber-500 to-orange-500' },
-                { icon: Shield, title: '3. Learn & Track', desc: 'Progress through modules at your own pace with real-time progress tracking.', gradient: 'from-emerald-500 to-green-500' },
-              ].map((feature) => (
-                <TiltCard
-                  key={feature.title}
-                  className="glass-card-hover rounded-2xl p-7 text-left glow-border relative overflow-hidden"
-                >
-                  <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${feature.gradient} flex items-center justify-center mb-5 shadow-lg`}>
-                    <feature.icon className="w-7 h-7 text-foreground" />
-                  </div>
-                  <h3 className="font-display font-semibold text-lg mb-2">{feature.title}</h3>
-                  <p className="text-muted-foreground text-sm leading-relaxed">{feature.desc}</p>
-                </TiltCard>
-              ))}
+      {/* Premium Navbar */}
+      <nav className={cn(
+        "fixed top-0 inset-x-0 z-50 flex items-center justify-between px-10 transition-all duration-700",
+        navScrolled ? "bg-background/90 backdrop-blur-3xl border-b border-white/5 py-5 shadow-2xl" : "bg-transparent py-8"
+      )}>
+        <motion.div 
+          initial={{ opacity: 0, x: -20 }} 
+          animate={{ opacity: 1, x: 0 }}
+          className="flex items-center gap-6 cursor-pointer group" 
+          onClick={() => navigate('/')}
+        >
+          <NeuralIcon 
+            icon={Zap} 
+            className="w-12 h-12" 
+            iconClassName="w-6 h-6"
+            gradient={moodColors.gradient}
+          />
+          <div className="flex flex-col justify-center">
+            <span className="font-display font-black text-2xl tracking-tighter leading-none uppercase group-hover:text-primary transition-colors">AFFEX</span>
+            <span className="text-[9px] font-mono tracking-[0.4em] uppercase text-white/20 mt-1">NEURAL SYSTEMS</span>
+          </div>
+        </motion.div>
+        
+        <div className="flex items-center gap-5">
+          {user ? (
+            <div className="flex items-center gap-4">
+              <MagneticButton variant="ghost" size="sm" onClick={() => navigate('/progress')} className="text-white/60 hover:text-white h-11 px-5 border border-white/5 hover:border-white/10">
+                <User className="w-4 h-4 mr-3" /> DASHBOARD
+              </MagneticButton>
+              <MagneticButton variant="glass" size="sm" onClick={signOut} className="w-11 h-11 p-0 flex items-center justify-center border border-white/5">
+                <LogOut className="w-4 h-4" />
+              </MagneticButton>
             </div>
-          </motion.div>
+          ) : (
+            <MagneticButton variant="mood" size="sm" onClick={() => navigate('/auth')} className="h-11 px-8 font-black tracking-widest text-[10px]">
+              INITIALIZE ACCESS
+            </MagneticButton>
+          )}
         </div>
-      </motion.div>
-
-      {/* Marquee */}
-      <div className="relative z-10 mt-auto">
-        <MarqueeStrip />
-      </div>
-    </section>
+      </nav>
+    </div>
   );
 }
+
+

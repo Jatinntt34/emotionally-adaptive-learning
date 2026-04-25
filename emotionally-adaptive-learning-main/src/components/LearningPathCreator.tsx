@@ -3,28 +3,21 @@ import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useMood, MoodType, moodConfig } from '@/contexts/MoodContext';
-import { 
-  ArrowLeft, 
-  ArrowRight, 
-  Book, 
-  Video, 
-  FileText, 
-  Sparkles,
-  CheckCircle2,
-  Brain,
-  Camera,
-  CameraOff,
-  Mic,
-  MicOff,
-  Loader2,
-  Clock,
-  ScanFace
+import {  Book, ArrowLeft, ArrowRight, Search, 
+  Settings2, Layout, Video, FileText, LayoutList, 
+  Camera, CameraOff, Mic, MicOff, ScanFace, Loader2,
+  Sparkles, Gauge, Target, Zap, Orbit, LucideIcon
 } from 'lucide-react';
-import { useEmotionTimer } from '@/hooks/useEmotionTimer';
-import { useNavigate } from 'react-router-dom';
+import { LivingIcon } from './LivingIcon';
+import { NeuralIcon } from './ui/NeuralIcon';
+import { useNeuralTracking } from '@/hooks/useNeuralTracking';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
+import { MagneticButton } from './ui/MagneticButton';
+import { TiltCard } from './ui/TiltCard';
+import { RevealSection } from './ui/RevealSection';
+import gsap from 'gsap';
 
 type ContentFormat = 'videos' | 'articles' | 'mixed';
 
@@ -38,8 +31,9 @@ interface LearningPathData {
 
 const steps = [
   { id: 'topic', title: 'Topic', icon: Book },
-  { id: 'mood', title: 'Emotional State', icon: Brain },
-  { id: 'format', title: 'Format', icon: Video },
+  { id: 'mood', title: 'Emotional State', icon: Settings2 },
+  { id: 'pace', title: 'Pace & Goal', icon: Gauge },
+  { id: 'format', title: 'Format', icon: LayoutList },
 ];
 
 const formatOptions = [
@@ -48,29 +42,25 @@ const formatOptions = [
   { value: 'mixed', label: 'Mixed', desc: 'Best of both worlds', icon: Sparkles },
 ];
 
-// Floating particle component
+const speedOptions: { value: string; label: string; desc: string; icon: LucideIcon }[] = [
+  { value: 'fast', label: 'Fast Track', desc: 'Intensive, fewer but denser modules', icon: Zap },
+  { value: 'moderate', label: 'Balanced', desc: 'Well-paced depth and breadth', icon: Target },
+  { value: 'slow', label: 'Deep Dive', desc: 'Slow, thorough, more modules', icon: Orbit },
+];
+
 function FloatingParticles({ mood }: { mood: MoodType }) {
   const config = moodConfig[mood];
   const particleColorMap: Record<MoodType, string> = {
-    energetic: 'bg-orange-400',
-    calm: 'bg-blue-400',
-    focused: 'bg-green-400',
-    creative: 'bg-purple-400',
-    motivated: 'bg-rose-400',
-    sad: 'bg-slate-400',
-    anxious: 'bg-amber-400',
-    bored: 'bg-teal-300',
-    unmotivated: 'bg-red-800',
+    energetic: 'bg-orange-400', calm: 'bg-blue-400', focused: 'bg-green-400',
+    creative: 'bg-purple-400', motivated: 'bg-rose-400', sad: 'bg-slate-400',
+    anxious: 'bg-amber-400', bored: 'bg-teal-300', unmotivated: 'bg-red-800',
     curious: 'bg-yellow-400',
   };
 
   const particleShape = ['sad', 'unmotivated', 'bored'].includes(mood) 
     ? 'rounded-full opacity-20' 
-    : ['anxious'].includes(mood)
-      ? 'rounded-sm opacity-50 rotate-45'
-      : ['creative', 'curious'].includes(mood)
-        ? 'rounded-full opacity-60'
-        : 'rounded-full opacity-40';
+    : ['anxious'].includes(mood) ? 'rounded-sm opacity-50 rotate-45'
+    : 'rounded-full opacity-40';
 
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -86,295 +76,63 @@ function FloatingParticles({ mood }: { mood: MoodType }) {
           animate={{
             x: [Math.random() * 400, Math.random() * 800, Math.random() * 400],
             y: [Math.random() * 300, Math.random() * 600, Math.random() * 300],
-            opacity: config.animationIntensity === 'high' ? [0.3, 0.7, 0.3] : config.animationIntensity === 'medium' ? [0.2, 0.5, 0.2] : [0.1, 0.25, 0.1],
-            scale: config.animationIntensity === 'high' ? [0.5, 1.5, 0.5] : [0.5, 1, 0.5],
+            opacity: [0.2, 0.5, 0.2],
+            scale: [0.8, 1.2, 0.8],
           }}
-          transition={{ duration: config.particleSpeed + Math.random() * 6, repeat: Infinity, ease: 'easeInOut', delay: Math.random() * 3 }}
+          transition={{ duration: config.particleSpeed + Math.random() * 10, repeat: Infinity, ease: 'easeInOut' }}
         />
       ))}
     </div>
   );
 }
 
-// Background pattern component
 function MoodBackground({ mood }: { mood: MoodType }) {
   const config = moodConfig[mood];
-  if (config.bgPattern === 'grid') {
-    return <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:64px_64px]" />;
-  }
-  if (config.bgPattern === 'dots') {
-    return <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:32px_32px]" />;
-  }
-  if (config.bgPattern === 'waves') {
-    return (
-      <motion.div 
-        className="absolute inset-0 opacity-[0.03]"
-        style={{ background: 'repeating-linear-gradient(45deg, currentColor 0px, currentColor 1px, transparent 1px, transparent 12px)' }}
-        animate={{ backgroundPosition: ['0px 0px', '24px 24px'] }}
-        transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
-      />
-    );
-  }
+  if (config.bgPattern === 'grid') return <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:64px_64px]" />;
+  if (config.bgPattern === 'dots') return <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:32px_32px]" />;
   return null;
 }
 
 export function LearningPathCreator() {
   const navigate = useNavigate();
-  const { mood, setMood, moodColors, detectedRawEmotion, setDetectedRawEmotion } = useMood();
+  const location = useLocation();
+  const { mood, setMood, moodColors, setDetectedRawEmotion } = useMood();
+  
+  const currentMoodColors = moodColors || moodConfig.energetic;
   const [currentStep, setCurrentStep] = useState(0);
+
+  // Pre-fill topic from home page search if available
+  const incomingTopic = (location.state as any)?.initialTopic || '';
+
   const [data, setData] = useState<LearningPathData>({
-    topic: '',
-    mood: mood,
-    speed: 'moderate',
-    format: 'mixed',
-    goal: '',
+    topic: incomingTopic, mood: mood, speed: 'moderate', format: 'mixed', goal: '',
   });
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // Camera & Mic state
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [cameraOn, setCameraOn] = useState(false);
-  const [micOn, setMicOn] = useState(false);
-  const [stream, setStream] = useState<MediaStream | null>(null);
-  const [audioLevel, setAudioLevel] = useState(0);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const animFrameRef = useRef<number | null>(null);
-
-  // AI Emotion Detection state
-  const [isDetecting, setIsDetecting] = useState(false);
-  const [detectedEmotion, setDetectedEmotion] = useState<{
-    mood: MoodType;
-    confidence: number;
-    suggestedDifficulty: 'easy' | 'medium' | 'moderate' | 'hard';
-    details: string;
-    source: 'face' | 'voice';
-  } | null>(null);
-  const faceDetectIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const audioLevelHistoryRef = useRef<number[]>([]);
-  const wsRef = useRef<WebSocket | null>(null);
+  const { 
+    isCamActive, setIsCamActive, isMicActive, setIsMicActive, 
+    currentEmotion, confidence, voiceEmotion, voiceConfidence, 
+    timerState, timeLeft, videoRef, canvasRef, audioLevel 
+  } = useNeuralTracking();
 
   const handleMoodLocked = useCallback((winnerMapped: MoodType, winnerRaw: string) => {
     setMood(winnerMapped);
     setData(prev => ({ ...prev, mood: winnerMapped }));
     setDetectedRawEmotion(winnerRaw);
-    toast.success(`Mood updated: ${winnerMapped}`, { description: `Feeling: ${winnerRaw}` });
-  }, [setMood, setDetectedRawEmotion]); // Ignore setData warning as it's safe
-
-  const { timerState, timeLeft, addEmotionToBuffer } = useEmotionTimer(
-    cameraOn, 
-    handleMoodLocked,
-    30
-  );
-
-  const stopStream = useCallback(() => {
-    if (stream) {
-      stream.getTracks().forEach(t => t.stop());
-      setStream(null);
-    }
-    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-    if (faceDetectIntervalRef.current) clearInterval(faceDetectIntervalRef.current);
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
-    }
-    setCameraOn(false);
-    setMicOn(false);
-    setAudioLevel(0);
-  }, [stream]);
-
-  useEffect(() => {
-    return () => {
-      if (stream) stream.getTracks().forEach(t => t.stop());
-      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-      if (faceDetectIntervalRef.current) clearInterval(faceDetectIntervalRef.current);
-    };
-  }, [stream]);
-
-  const connectWebSocket = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) return;
-    
-    try {
-      const ws = new WebSocket('ws://localhost:8000/ws/emotion');
-      ws.onmessage = (event) => {
-        try {
-          const result = JSON.parse(event.data);
-          if (result.status === 'success' && result.emotion) {
-            const emotionMap: Record<string, MoodType> = {
-              angry: 'anxious', disgust: 'unmotivated', fear: 'anxious',
-              happy: 'energetic', neutral: 'calm', sad: 'sad', surprise: 'curious'
-            };
-            const mappedMood = emotionMap[result.emotion];
-            
-            if (mappedMood) {
-              setDetectedEmotion({ 
-                mood: mappedMood, 
-                confidence: result.confidence / 100, 
-                suggestedDifficulty: 'moderate', 
-                details: `Detected: ${result.emotion}`, 
-                source: 'face' 
-              });
-              
-              // Delegate to sophisticated timer hook
-              addEmotionToBuffer(mappedMood, result.emotion);
-            }
-            setIsDetecting(false);
-          }
-        } catch (e) {}
-      };
-      wsRef.current = ws;
-    } catch (e) {}
+    toast.success(`Mood synchronized: ${winnerMapped}`);
   }, [setMood, setDetectedRawEmotion]);
 
-  // Face emotion detection (sends frame to websocket)
-  const captureFrameAndDetect = useCallback(() => {
-    if (!videoRef.current || !cameraOn) return;
-    const video = videoRef.current;
-    if (video.readyState < 2) return;
-
-    const canvas = canvasRef.current || document.createElement('canvas');
-    canvas.width = 320;
-    canvas.height = 240;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.drawImage(video, 0, 0, 320, 240);
-    const imageBase64 = canvas.toDataURL('image/jpeg', 0.5);
-
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      setIsDetecting(true);
-      wsRef.current.send(imageBase64);
-    }
-  }, [cameraOn]);
-
-  // Voice emotion detection
-  const analyzeVoiceEmotion = useCallback(async () => {
-    if (audioLevelHistoryRef.current.length < 10) return;
-    const history = audioLevelHistoryRef.current;
-    const avgLevel = history.reduce((a, b) => a + b, 0) / history.length;
-    const maxLevel = Math.max(...history);
-    const mean = avgLevel;
-    const variance = history.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / history.length;
-    audioLevelHistoryRef.current = [];
-
-    try {
-      const { data, error } = await supabase.functions.invoke('detect-voice-emotion', {
-        body: { audioFeatures: { avgLevel, maxLevel, variance } },
-      });
-      if (error) throw error;
-      if (data && !data.error) {
-        const result = data as { mood: MoodType; confidence: number; suggestedDifficulty: 'easy' | 'medium' | 'moderate' | 'hard'; voiceTone: string };
-        if (!detectedEmotion || detectedEmotion.source === 'voice') {
-          setDetectedEmotion({ mood: result.mood, confidence: result.confidence, suggestedDifficulty: result.suggestedDifficulty, details: result.voiceTone, source: 'voice' });
-          setMood(result.mood);
-          setData(prev => ({ ...prev, mood: result.mood }));
-          toast.success(`Voice mood detected: ${result.mood}`, { description: result.voiceTone });
-        }
-      }
-    } catch (err) {
-      console.error('Voice emotion detection error:', err);
-    }
-  }, [detectedEmotion, setMood]);
-
-  // Periodic face capture
-  useEffect(() => {
-    if (cameraOn) {
-      connectWebSocket();
-      const initialTimeout = setTimeout(() => {
-        captureFrameAndDetect();
-        faceDetectIntervalRef.current = setInterval(captureFrameAndDetect, 1500); // Poll faster like floating widget
-      }, 2000);
-      return () => {
-        clearTimeout(initialTimeout);
-        if (faceDetectIntervalRef.current) clearInterval(faceDetectIntervalRef.current);
-        if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
-      };
-    } else {
-      if (faceDetectIntervalRef.current) { clearInterval(faceDetectIntervalRef.current); faceDetectIntervalRef.current = null; }
-      if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
-    }
-  }, [cameraOn, captureFrameAndDetect, connectWebSocket]);
-
-  // Periodic voice analysis
-  useEffect(() => {
-    if (!micOn) return;
-    const interval = setInterval(analyzeVoiceEmotion, 10000);
-    return () => clearInterval(interval);
-  }, [micOn, analyzeVoiceEmotion]);
-
-  const toggleCamera = async () => {
-    if (cameraOn) { stopStream(); return; }
-    try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: micOn });
-      setStream(mediaStream);
-      setCameraOn(true);
-      if (videoRef.current) videoRef.current.srcObject = mediaStream;
-      toast.success('Camera activated!');
-    } catch {
-      toast.error('Camera access denied');
-    }
-  };
-
-  const toggleMic = async () => {
-    if (micOn) {
-      if (stream) stream.getAudioTracks().forEach(t => t.stop());
-      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-      setMicOn(false);
-      setAudioLevel(0);
-      audioLevelHistoryRef.current = [];
-      return;
-    }
-    try {
-      const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      if (stream && cameraOn) {
-        audioStream.getAudioTracks().forEach(t => stream.addTrack(t));
-      } else {
-        setStream(audioStream);
-      }
-      setMicOn(true);
-
-      const audioCtx = new AudioContext();
-      const source = audioCtx.createMediaStreamSource(audioStream);
-      const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 256;
-      source.connect(analyser);
-      analyserRef.current = analyser;
-
-      const dataArray = new Uint8Array(analyser.frequencyBinCount);
-      const updateLevel = () => {
-        analyser.getByteFrequencyData(dataArray);
-        const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
-        const normalized = avg / 255;
-        setAudioLevel(normalized);
-        audioLevelHistoryRef.current.push(normalized);
-        if (audioLevelHistoryRef.current.length > 50) audioLevelHistoryRef.current.shift();
-        animFrameRef.current = requestAnimationFrame(updateLevel);
-      };
-      updateLevel();
-      toast.success('Microphone activated!');
-    } catch {
-      toast.error('Microphone access denied');
-    }
-  };
-
-  useEffect(() => {
-    if (videoRef.current && stream && cameraOn) videoRef.current.srcObject = stream;
-  }, [stream, cameraOn]);
+  const toggleCamera = () => setIsCamActive(!isCamActive);
+  const toggleMic = () => setIsMicActive(!isMicActive);
 
   const canProceed = () => {
-    switch (currentStep) {
-      case 0: return data.topic.length > 2;
-      case 1: return true;
-      case 2: return true;
-      default: return false;
-    }
+    if (currentStep === 0) return data.topic.length > 2;
+    return true;
   };
 
   const handleNext = () => {
-    if (currentStep < steps.length - 1) {
-      setCurrentStep(currentStep + 1);
-    } else {
-      handleGenerate();
-    }
+    if (currentStep < steps.length - 1) setCurrentStep(currentStep + 1);
+    else handleGenerate();
   };
 
   const handleBack = () => {
@@ -383,34 +141,30 @@ export function LearningPathCreator() {
   };
 
   const handleGenerate = () => {
-    stopStream();
     setIsGenerating(true);
     setTimeout(() => {
-      toast.success('Learning path created!', { description: `Your personalized ${data.topic} learning path is ready.` });
       setIsGenerating(false);
       navigate('/learning-path', { 
         state: { 
           ...data, 
-          goal: `Learn ${data.topic}`,
-          suggestedDifficulty: detectedEmotion?.suggestedDifficulty || null,
-          emotionSource: detectedEmotion?.source || null,
-          detectedConfidence: detectedEmotion?.confidence || null,
+          goal: data.goal || `Learn ${data.topic}`,
+          emotionSource: isCamActive ? 'face' : isMicActive ? 'voice' : null,
+          detectedConfidence: confidence || voiceConfidence || null,
         } 
       });
     }, 2000);
   };
 
-  const moods = Object.entries(moodConfig) as [MoodType, typeof moodColors][];
-
-  // Mouse-tracking parallax for background
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
   const smoothX = useSpring(mouseX, { stiffness: 40, damping: 30 });
   const smoothY = useSpring(mouseY, { stiffness: 40, damping: 30 });
   const blob1X = useTransform(smoothX, [-1, 1], [-30, 30]);
   const blob1Y = useTransform(smoothY, [-1, 1], [-25, 25]);
-  const blob2X = useTransform(smoothX, [-1, 1], [20, -20]);
-  const blob2Y = useTransform(smoothY, [-1, 1], [15, -15]);
+
+  // GSAP stagger refs for card grids
+  const speedGridRef = useRef<HTMLDivElement>(null);
+  const formatGridRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleMove = (e: MouseEvent) => {
@@ -419,481 +173,323 @@ export function LearningPathCreator() {
     };
     window.addEventListener('mousemove', handleMove);
     return () => window.removeEventListener('mousemove', handleMove);
-  }, [mouseX, mouseY]);
+  }, []);
 
-  // Mood-adaptive encouragement text
-  const moodEncouragement: Record<string, string> = {
-    energetic: "Let's build something awesome! ⚡",
-    calm: 'Take your time, no rush here 🌊',
-    focused: 'Laser-sharp focus mode activated 🎯',
-    creative: 'Let your imagination lead the way ✨',
-    motivated: "You've got this — let's go! 🚀",
-    sad: "Learning can be a gentle comfort 💙",
-    anxious: 'One step at a time, you\'re safe here 🛡️',
-    bored: 'Let\'s find something exciting! 🎲',
-    unmotivated: 'Even small steps count 🌱',
-    curious: 'Wonderful! Let\'s explore together 🔍',
-  };
+  // GSAP stagger animation for speed cards
+  useEffect(() => {
+    if (currentStep === 2 && speedGridRef.current) {
+      const cards = speedGridRef.current.querySelectorAll('.speed-card');
+      gsap.fromTo(cards, 
+        { y: 40, opacity: 0, scale: 0.92 },
+        { y: 0, opacity: 1, scale: 1, duration: 0.7, stagger: 0.12, ease: 'back.out(1.4)', delay: 0.15 }
+      );
+    }
+  }, [currentStep]);
+
+  // GSAP stagger animation for format cards
+  useEffect(() => {
+    if (currentStep === 3 && formatGridRef.current) {
+      const cards = formatGridRef.current.querySelectorAll('.format-card');
+      gsap.fromTo(cards, 
+        { y: 40, opacity: 0, scale: 0.92 },
+        { y: 0, opacity: 1, scale: 1, duration: 0.7, stagger: 0.12, ease: 'back.out(1.4)', delay: 0.15 }
+      );
+    }
+  }, [currentStep]);
 
   return (
-    <div className="min-h-screen bg-background relative overflow-hidden">
+    <div className="min-h-screen bg-background relative overflow-y-auto custom-scrollbar">
       <FloatingParticles mood={data.mood} />
 
-      <div className="absolute inset-0 overflow-hidden">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div
-          className={`absolute top-1/4 right-1/4 w-96 h-96 bg-gradient-to-r ${moodColors.gradient} rounded-full blur-3xl transition-colors duration-700`}
+          className={`absolute top-1/4 right-1/4 w-96 h-96 bg-gradient-to-r ${currentMoodColors.gradient} rounded-full blur-3xl opacity-20`}
           style={{ x: blob1X, y: blob1Y }}
-          animate={{
-            opacity: moodColors.animationIntensity === 'high' ? [0.2, 0.4, 0.2] : [0.08, 0.18, 0.08],
-            scale: moodColors.animationIntensity === 'high' ? [1, 1.3, 1] : [1, 1.1, 1],
-          }}
-          transition={{ duration: moodColors.animationIntensity === 'high' ? 8 : 16, repeat: Infinity, ease: 'easeInOut' }}
-        />
-        <motion.div
-          className={`absolute bottom-1/4 left-1/4 w-72 h-72 bg-gradient-to-l ${moodColors.gradient} rounded-full blur-3xl transition-colors duration-700`}
-          style={{ x: blob2X, y: blob2Y }}
-          animate={{
-            opacity: moodColors.animationIntensity === 'high' ? [0.15, 0.3, 0.15] : [0.05, 0.12, 0.05],
-            scale: [1.1, 0.9, 1.1],
-          }}
-          transition={{ duration: moodColors.animationIntensity === 'high' ? 7 : 14, repeat: Infinity, ease: 'easeInOut' }}
+          animate={{ scale: [1, 1.1, 1] }}
+          transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
         />
         <MoodBackground mood={data.mood} />
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.01)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[size:64px_64px]" />
       </div>
 
-      <div className="relative z-10 container mx-auto px-6 py-12">
+      <div className="relative z-10 container mx-auto px-6 py-12 max-w-5xl">
         {/* Header */}
         <div className="flex items-center justify-between mb-12">
-          <Button variant="ghost" onClick={handleBack} className="gap-2">
-            <ArrowLeft className="w-4 h-4" />
-            Back
+          <Button variant="ghost" onClick={handleBack} className="gap-2 backdrop-blur-md bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">
+            <ArrowLeft className="w-4 h-4" /> Back
           </Button>
-          <div className="flex items-center gap-2">
-            {steps.map((step, index) => (
+          <div className="flex items-center gap-3">
+            {steps.map((_, index) => (
               <motion.div
-                key={step.id}
+                key={index}
                 className={cn(
-                  'w-3 h-3 rounded-full transition-all duration-300',
-                  index === currentStep ? `bg-gradient-to-r ${moodColors.gradient}` : index < currentStep ? 'bg-primary/60' : 'bg-muted'
+                  'w-2 h-2 rounded-full transition-all duration-500',
+                  index === currentStep ? `w-8 bg-primary shadow-[0_0_15px_rgba(var(--primary),0.5)]` : 'bg-white/10'
                 )}
-                animate={index === currentStep ? { scale: [1, 1.4, 1] } : {}}
-                transition={{ duration: 1.5, repeat: Infinity }}
               />
-            ))}
-          </div>
-        </div>
-
-        {/* Progress Steps */}
-        <div className="max-w-3xl mx-auto mb-12">
-          <div className="flex justify-between items-center">
-            {steps.map((step, index) => (
-              <div key={step.id} className="flex flex-col items-center">
-                <motion.div
-                  className={cn(
-                    'w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300',
-                    index === currentStep ? `bg-gradient-to-br ${moodColors.gradient} shadow-lg ${moodColors.glow}` : index < currentStep ? 'bg-primary/30' : 'bg-muted/50'
-                  )}
-                  animate={index === currentStep ? { boxShadow: ['0 0 0px rgba(255,255,255,0)', '0 0 20px rgba(255,255,255,0.15)', '0 0 0px rgba(255,255,255,0)'] } : {}}
-                  transition={{ duration: 2, repeat: Infinity }}
-                >
-                  {index < currentStep ? (
-                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring' }}>
-                      <CheckCircle2 className="w-5 h-5 text-foreground" />
-                    </motion.div>
-                  ) : (
-                    <step.icon className="w-5 h-5 text-foreground" />
-                  )}
-                </motion.div>
-                <span className={cn('text-xs mt-2 hidden md:block', index === currentStep ? 'text-foreground' : 'text-muted-foreground')}>
-                  {step.title}
-                </span>
-              </div>
             ))}
           </div>
         </div>
 
         {/* Step Content */}
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-4xl mx-auto">
           <AnimatePresence mode="wait">
             <motion.div
               key={currentStep}
-              initial={{ opacity: 0, y: 30, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -30, scale: 0.95 }}
-              transition={{ duration: 0.4, ease: 'easeOut' }}
-              className="glass-card rounded-3xl p-8 md:p-12 relative overflow-hidden"
+              initial={{ opacity: 0, scale: 0.98, filter: 'blur(10px)' }}
+              animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+              exit={{ opacity: 0, scale: 1.02, filter: 'blur(10px)' }}
+              transition={{ duration: 0.5, ease: 'circOut' }}
+              className="glass-card rounded-[2.5rem] p-8 md:p-14 border border-white/5 bg-black/20 backdrop-blur-3xl shadow-2xl overflow-hidden"
             >
-              <motion.div
-                className={`absolute inset-0 rounded-3xl bg-gradient-to-r ${moodColors.gradient} opacity-0`}
-                animate={{ opacity: [0, 0.08, 0] }}
-                transition={{ duration: 3, repeat: Infinity }}
-                style={{ zIndex: -1 }}
-              />
-
-              {/* Step 0: Topic */}
-              {currentStep === 0 && (
-                <div className="space-y-6">
-                  <div className="text-center">
-                    <motion.div
-                      className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${moodColors.gradient} flex items-center justify-center mx-auto mb-4`}
-                      animate={{ rotate: [0, 5, -5, 0] }}
-                      transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-                    >
-                      <Book className="w-8 h-8 text-foreground" />
-                    </motion.div>
-                    <h2 className="font-display text-3xl font-bold mb-2">What do you want to learn?</h2>
-                    <p className="text-muted-foreground">{moodEncouragement[data.mood] || 'Enter a topic you\'re interested in mastering'}</p>
-                  </div>
-                  <motion.div whileFocus={{ scale: 1.02 }}>
-                    <Input
-                      value={data.topic}
-                      onChange={(e) => setData({ ...data, topic: e.target.value })}
-                      placeholder="e.g. React.js, Data Structures, Machine Learning..."
-                      className="h-14 text-lg bg-background/50 border-border/50 text-center"
-                    />
-                  </motion.div>
-                  <div className="flex flex-wrap gap-2 justify-center">
-                    {['React.js', 'Python', 'Web Development', 'Data Science'].map((suggestion, i) => (
-                      <motion.button
-                        key={suggestion}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: i * 0.1 }}
-                        whileHover={{ scale: 1.08, y: -2 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => setData({ ...data, topic: suggestion })}
-                        className="px-4 py-2 rounded-full bg-secondary/50 text-sm hover:bg-secondary transition-colors"
+              <div className="relative z-10">
+                {currentStep === 0 && (
+                  <RevealSection className="space-y-12">
+                    <div className="text-center">
+                      <motion.div
+                        className="mx-auto mb-8"
+                        animate={{ y: [0, -10, 0] }}
+                        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
                       >
-                        {suggestion}
-                      </motion.button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Step 1: Mood + Camera/Mic */}
-              {currentStep === 1 && (
-                <div className="space-y-8">
-                  <div className="text-center">
-                    <motion.div
-                      className={`w-20 h-20 rounded-3xl bg-gradient-to-br ${moodColors.gradient} flex items-center justify-center mx-auto mb-5 shadow-2xl`}
-                      animate={{ scale: [1, 1.08, 1], rotate: [0, 3, -3, 0] }}
-                      transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-                    >
-                      <Brain className="w-10 h-10 text-foreground" />
-                    </motion.div>
-                    <h2 className="font-display text-3xl font-bold mb-2">How are you feeling?</h2>
-                    <p className="text-muted-foreground text-sm">Your mood shapes your learning experience — select or let AI detect it</p>
-                  </div>
-
-                  {/* AI Detection Module - Redesigned */}
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.15 }}
-                    className="glass-card rounded-2xl p-5 border border-primary/10"
-                  >
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${cameraOn || micOn ? 'bg-green-500 animate-pulse' : 'bg-muted-foreground/40'}`} />
-                        <span className="text-sm font-semibold">AI Emotion Detection</span>
-                      </div>
-                      <div className="flex gap-2">
-                        <motion.button
-                          whileHover={{ scale: 1.08 }}
-                          whileTap={{ scale: 0.92 }}
-                          onClick={toggleCamera}
-                          className={cn(
-                            'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300',
-                            cameraOn 
-                              ? `bg-gradient-to-br ${moodColors.gradient} shadow-lg text-foreground` 
-                              : 'bg-secondary/50 hover:bg-secondary text-muted-foreground'
-                          )}
-                        >
-                          {cameraOn ? <Camera className="w-4 h-4" /> : <CameraOff className="w-4 h-4" />}
-                          {cameraOn ? 'Camera On' : 'Camera'}
-                        </motion.button>
-                        <motion.button
-                          whileHover={{ scale: 1.08 }}
-                          whileTap={{ scale: 0.92 }}
-                          onClick={toggleMic}
-                          className={cn(
-                            'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 relative',
-                            micOn 
-                              ? `bg-gradient-to-br ${moodColors.gradient} shadow-lg text-foreground` 
-                              : 'bg-secondary/50 hover:bg-secondary text-muted-foreground'
-                          )}
-                        >
-                          {micOn ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
-                          {micOn ? 'Mic On' : 'Mic'}
-                          {micOn && (
-                            <motion.div
-                              className="absolute inset-0 rounded-xl border-2 border-primary"
-                              animate={{ scale: 1 + audioLevel * 0.4, opacity: audioLevel }}
-                              transition={{ duration: 0.1 }}
-                            />
-                          )}
-                        </motion.button>
+                        <NeuralIcon icon={Sparkles} className="w-24 h-24" iconClassName="w-10 h-10" gradient={currentMoodColors.gradient} />
+                      </motion.div>
+                      <h2 className="font-display text-5xl font-bold mb-4 tracking-tight">Master your next goal.</h2>
+                      <p className="text-muted-foreground text-xl max-w-lg mx-auto">Craft a personalized learning path tailored to your current emotional resonance.</p>
+                    </div>
+                    
+                    <div className="max-w-xl mx-auto relative group">
+                      <div className="absolute -inset-1 bg-gradient-to-r from-primary/30 to-purple-500/30 rounded-[2.5rem] blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-700" />
+                      <div className="relative">
+                        <Search className="absolute left-7 top-1/2 -translate-y-1/2 w-6 h-6 text-white/30" />
+                        <Input
+                          type="text"
+                          placeholder="What do you want to learn today?"
+                          className="h-24 pl-16 pr-8 text-2xl rounded-[2.5rem] bg-white/5 border-white/10 focus:border-primary/50 focus:bg-white/10 transition-all duration-500 placeholder:text-white/20"
+                          value={data.topic}
+                          onChange={(e) => setData({ ...data, topic: e.target.value })}
+                          onKeyDown={(e) => e.key === 'Enter' && canProceed() && handleNext()}
+                        />
                       </div>
                     </div>
 
-                    {/* Camera Preview */}
-                    <AnimatePresence>
-                      {cameraOn && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: 200, opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.4 }}
-                          className="relative rounded-2xl overflow-hidden mb-3 bg-background/80 border border-border/30"
+                    <div className="flex flex-wrap justify-center gap-3">
+                      {['Generative AI', 'Deep Meditation', 'Neuroscience', 'Creative Writing'].map((tag) => (
+                        <button
+                          key={tag}
+                          onClick={() => setData({ ...data, topic: tag })}
+                          className="px-5 py-2.5 rounded-full bg-white/5 border border-white/10 hover:bg-primary/20 hover:border-primary/40 transition-all text-sm font-medium"
                         >
-                          {/* Timer Badge Overlay */}
-                          <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-black/60 shadow-xl backdrop-blur-md text-white px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide border border-white/20 z-10 transition-all">
-                            {timerState === 'grace' && <><Clock className="w-4 h-4 text-amber-400 animate-pulse"/> Ready {timeLeft}s</>}
-                            {timerState === 'analyzing' && <><ScanFace className="w-4 h-4 text-blue-400 rotate-12"/> Analyzing... {timeLeft}s</>}
-                            {timerState === 'cooldown' && <><CheckCircle2 className="w-4 h-4 text-green-400"/> Locked for {timeLeft}s</>}
-                          </div>
-
-                          <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover rounded-2xl" style={{ transform: 'scaleX(-1)' }} />
-                          <canvas ref={canvasRef} className="hidden" />
-                          <motion.div
-                            className="absolute inset-0 bg-gradient-to-b from-transparent via-primary/10 to-transparent"
-                            animate={{ y: ['-100%', '100%'] }}
-                            transition={{ duration: 2.5, repeat: Infinity, ease: 'linear' }}
-                          />
-                          <div className="absolute bottom-3 left-3 right-3 bg-background/60 backdrop-blur-md rounded-xl px-3 py-2 flex items-center gap-2">
-                            {isDetecting ? (
-                              <>
-                                <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
-                                <span className="text-xs font-medium">Analyzing your expression...</span>
-                              </>
-                            ) : detectedEmotion?.source === 'face' ? (
-                              <>
-                                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                                <span className="text-xs font-medium capitalize">
-                                  Detected: {detectedEmotion.mood} • {Math.round(detectedEmotion.confidence * 100)}% confidence
-                                </span>
-                              </>
-                            ) : (
-                              <>
-                                <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                                <span className="text-xs font-medium">Scanning your face...</span>
-                              </>
-                            )}
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-
-                    {/* Audio Visualizer */}
-                    <AnimatePresence>
-                      {micOn && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: 48, opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          className="flex items-center gap-1 justify-center rounded-xl bg-background/50 px-4 mb-3 border border-border/20"
-                        >
-                          {Array.from({ length: 20 }).map((_, i) => (
-                            <motion.div
-                              key={i}
-                              className={`w-1 rounded-full bg-gradient-to-t ${moodColors.gradient}`}
-                              animate={{ height: Math.max(4, audioLevel * 36 * (1 + Math.sin(i * 0.8) * 0.5)) }}
-                              transition={{ duration: 0.05 }}
-                            />
-                          ))}
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-
-                    {/* Interaction Prompt for Emotion Expression */}
-                    <AnimatePresence>
-                      {(cameraOn || micOn) && timerState === 'analyzing' && (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0, marginTop: 0 }}
-                          animate={{ opacity: 1, height: 'auto', marginTop: 12 }}
-                          exit={{ opacity: 0, height: 0, marginTop: 0 }}
-                          className="p-4 bg-primary/10 rounded-xl border border-primary/20 text-center shadow-inner overflow-hidden mb-3"
-                        >
-                          <p className="text-xs font-bold uppercase tracking-wider text-primary/80 mb-2 flex items-center justify-center gap-1.5">
-                            <Sparkles className="w-3.5 h-3.5" />
-                            {micOn ? 'Read this aloud to show your mood:' : 'React to this to show your mood:'}
-                          </p>
-                          <p className="text-sm font-medium italic text-foreground opacity-90 leading-relaxed">
-                            "I really want to dive into {data.topic || 'learning something new'} today! Let's see what amazing things we can discover together."
-                          </p>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-
-                    {/* AI Detection Result */}
-                    <AnimatePresence>
-                      {detectedEmotion && (
-                        <motion.div
-                          initial={{ opacity: 0, y: 8 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0 }}
-                          className={`rounded-xl p-4 mt-2 bg-gradient-to-r ${moodConfig[detectedEmotion.mood].gradient}`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-semibold text-foreground">
-                              {detectedEmotion.source === 'face' ? '📷 Face' : '🎤 Voice'} → <span className="capitalize">{detectedEmotion.mood}</span>
-                            </span>
-                            <span className="bg-background/30 px-3 py-1 rounded-full text-xs text-foreground font-semibold capitalize">
-                              {detectedEmotion.suggestedDifficulty} difficulty
-                            </span>
-                          </div>
-                          <p className="text-xs text-foreground/70 mt-1.5">{detectedEmotion.details}</p>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-
-                    {!cameraOn && !micOn && (
-                      <div className="text-center py-3">
-                        <p className="text-xs text-muted-foreground">
-                          Turn on camera or mic for automatic emotion detection, or pick your mood below
-                        </p>
-                      </div>
-                    )}
-                  </motion.div>
-
-                  {/* Mood Grid - Redesigned with better visual hierarchy */}
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3 text-center">Or select manually</p>
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                      {moods.map(([moodType, config], i) => (
-                        <motion.button
-                          key={moodType}
-                          initial={{ opacity: 0, scale: 0.85 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          transition={{ delay: i * 0.04 }}
-                          whileHover={{ scale: 1.06, y: -3 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={() => {
-                            setMood(moodType);
-                            setData({ ...data, mood: moodType });
-                            setDetectedRawEmotion(null);
-                          }}
-                          className={cn(
-                            'relative p-4 rounded-2xl border-2 transition-all duration-300 text-center overflow-hidden group',
-                            data.mood === moodType
-                              ? `bg-gradient-to-br ${config.gradient} border-transparent shadow-xl`
-                              : 'bg-card/40 border-border/30 hover:border-primary/30 hover:bg-card/60'
-                          )}
-                        >
-                          {data.mood === moodType && (
-                            <motion.div
-                              className="absolute inset-0 bg-white/10"
-                              animate={{ opacity: [0, 0.2, 0] }}
-                              transition={{ duration: 2, repeat: Infinity }}
-                            />
-                          )}
-                          <span className={cn(
-                            'font-semibold text-sm block transition-colors',
-                            data.mood === moodType ? 'text-foreground' : 'text-foreground/70 group-hover:text-foreground'
-                          )}>
-                            {config.label}
-                            {data.mood === moodType && detectedRawEmotion && (
-                              <span className="block text-[10px] mt-0.5 opacity-80 uppercase tracking-wider">
-                                (Feeling: {detectedRawEmotion})
-                              </span>
-                            )}
-                          </span>
-                          {data.mood === moodType && (
-                            <motion.div
-                              initial={{ scale: 0 }}
-                              animate={{ scale: 1 }}
-                              className="absolute top-1.5 right-1.5"
-                            >
-                              <CheckCircle2 className="w-4 h-4 text-foreground" />
-                            </motion.div>
-                          )}
-                        </motion.button>
+                          {tag}
+                        </button>
                       ))}
                     </div>
-                  </div>
-                </div>
-              )}
+                  </RevealSection>
+                )}
 
-              {/* Step 2: Format */}
-              {currentStep === 2 && (
-                <div className="space-y-6">
-                  <div className="text-center">
-                    <motion.div
-                      className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${moodColors.gradient} flex items-center justify-center mx-auto mb-4`}
-                      animate={{ y: [0, -6, 0] }}
-                      transition={{ duration: 2, repeat: Infinity }}
-                    >
-                      <Video className="w-8 h-8 text-foreground" />
-                    </motion.div>
-                    <h2 className="font-display text-3xl font-bold mb-2">Content Format</h2>
-                    <p className="text-muted-foreground">Pick the format that fits your current energy</p>
-                  </div>
-                  <div className="grid grid-cols-3 gap-4">
-                    {formatOptions.map((option, i) => (
-                      <motion.button
-                        key={option.value}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: i * 0.12 }}
-                        whileHover={{ scale: 1.06, y: -6 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => setData({ ...data, format: option.value as ContentFormat })}
-                        className={cn(
-                          'p-6 rounded-2xl border flex flex-col items-center gap-3 transition-all duration-300 relative overflow-hidden',
-                          data.format === option.value
-                            ? `bg-gradient-to-br ${moodColors.gradient} border-transparent shadow-lg`
-                            : 'bg-secondary/30 border-border/50 hover:bg-secondary/50'
-                        )}
-                      >
-                        {data.format === option.value && (
-                          <motion.div
-                            className="absolute inset-0 bg-white/5"
-                            animate={{ opacity: [0, 0.2, 0] }}
-                            transition={{ duration: 1.5, repeat: Infinity }}
-                          />
-                        )}
-                        <option.icon className="w-8 h-8" />
-                        <span className="font-semibold">{option.label}</span>
-                        <span className="text-xs text-muted-foreground text-center">{option.desc}</span>
-                      </motion.button>
-                    ))}
-                  </div>
-                </div>
-              )}
+                {currentStep === 1 && (
+                  <RevealSection className="space-y-10">
+                    <div className="text-center">
+                      <h2 className="font-display text-4xl font-bold mb-3">Sync Your State</h2>
+                      <p className="text-muted-foreground text-lg">Your emotional resonance dictates the rhythm of discovery.</p>
+                    </div>
 
-              {/* Navigation */}
-              <div className="flex justify-between mt-8 pt-6 border-t border-border/50">
-                <Button variant="ghost" onClick={handleBack}>
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back
-                </Button>
-                <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
-                  <Button 
-                    variant="mood" 
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+                      {/* Neural Interface Preview */}
+                      <div className="glass-card rounded-3xl p-6 border-white/10 bg-black/40">
+                        <div className="flex items-center justify-between mb-6">
+                          <span className="text-[10px] uppercase font-bold tracking-widest text-primary font-mono">Neural Interface</span>
+                          <div className="flex gap-2">
+                            <button 
+                              onClick={toggleCamera}
+                              className={cn("p-3 rounded-xl transition-all", isCamActive ? "bg-primary/20 text-primary" : "bg-white/5 text-white/40")}
+                            >
+                              {isCamActive ? <Camera className="w-5 h-5" /> : <CameraOff className="w-5 h-5" />}
+                            </button>
+                            <button 
+                              onClick={toggleMic}
+                              className={cn("p-3 rounded-xl transition-all", isMicActive ? "bg-red-500/20 text-red-500" : "bg-white/5 text-white/40")}
+                            >
+                              {isMicActive ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="relative aspect-video rounded-2xl overflow-hidden bg-black/60 border border-white/5 mb-4 group">
+                          {isCamActive ? (
+                            <>
+                              <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover transform -scale-x-100" />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
+                              <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/20 backdrop-blur-md border border-primary/20">
+                                <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity }} className="w-2 h-2 rounded-full bg-primary" />
+                                <span className="text-[10px] font-bold text-primary font-mono">{timerState}</span>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center text-white/20">
+                              <ScanFace className="w-12 h-12 mb-3" />
+                              <span className="text-xs font-medium">Activate sensors for neural sync</span>
+                            </div>
+                          )}
+
+                          {isMicActive && (
+                            <div className="absolute bottom-4 left-4 right-4 h-1 flex items-end gap-0.5 px-2">
+                              {Array.from({ length: 40 }).map((_, i) => (
+                                <motion.div 
+                                  key={i}
+                                  className="flex-1 bg-red-500/60 rounded-t-full"
+                                  animate={{ height: `${20 + Math.random() * 80 * audioLevel}%` }}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {(isCamActive || isMicActive) && (
+                          <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
+                            <div className="flex flex-col">
+                              <span className="text-[9px] uppercase tracking-tighter text-white/40 font-mono">Detected Resonance</span>
+                              <span className="text-sm font-bold text-primary capitalize">{currentEmotion || voiceEmotion}</span>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-[9px] uppercase tracking-tighter text-white/40 font-mono">Confidence</span>
+                              <span className="text-sm font-bold block">{Math.round((confidence || voiceConfidence) * 100)}%</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Manual Mood Selection */}
+                      <div className="space-y-4">
+                        <span className="text-[10px] uppercase font-bold tracking-widest text-white/40 font-mono px-1">Manual Selection</span>
+                        <div className="grid grid-cols-2 gap-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
+                          {Object.entries(moodConfig).map(([moodType, config]) => (
+                            <button
+                              key={moodType}
+                              onClick={() => {
+                                setMood(moodType as MoodType);
+                                setData({ ...data, mood: moodType as MoodType });
+                              }}
+                              className={cn(
+                                "flex items-center gap-3 p-4 rounded-2xl border transition-all text-left group",
+                                data.mood === moodType 
+                                  ? `bg-gradient-to-br ${config.gradient} border-transparent shadow-lg text-white` 
+                                  : "bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/20 text-white/60"
+                              )}
+                            >
+                               <LivingIcon iconName={config.iconName} size="sm" isInteractive={false} />
+                              <span className="text-xs font-bold capitalize">{moodType}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </RevealSection>
+                )}
+
+                {currentStep === 2 && (
+                  <RevealSection className="space-y-12">
+                    <div className="text-center">
+                      <h2 className="font-display text-4xl font-bold mb-4 tracking-tight">Pace & Goal</h2>
+                      <p className="text-muted-foreground text-lg">Set your learning speed and define what you want to achieve.</p>
+                    </div>
+                    <div ref={speedGridRef} className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      {speedOptions.map((option) => (
+                        <TiltCard key={option.value}>
+                          <button
+                            onClick={() => setData({ ...data, speed: option.value })}
+                            className={cn(
+                              'speed-card w-full p-8 rounded-[2.5rem] border flex flex-col items-center gap-6 transition-all duration-500 group relative overflow-hidden',
+                              data.speed === option.value
+                                ? `bg-gradient-to-br ${currentMoodColors.gradient} border-transparent shadow-2xl`
+                                : 'bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/20 text-white/60'
+                            )}
+                          >
+                            <NeuralIcon icon={option.icon} className="w-16 h-16" iconClassName="w-7 h-7" gradient={data.speed === option.value ? 'from-white/20 to-white/5' : currentMoodColors.gradient} />
+                            <div className="text-center">
+                              <span className="block font-bold text-xl mb-2 text-white">{option.label}</span>
+                              <span className="text-sm opacity-60 leading-relaxed">{option.desc}</span>
+                            </div>
+                            {data.speed === option.value && (
+                              <motion.div layoutId="speedActive" className="absolute inset-0 bg-white/10 mix-blend-overlay" />
+                            )}
+                          </button>
+                        </TiltCard>
+                      ))}
+                    </div>
+                    <div className="mt-8">
+                      <label className="block text-sm font-mono uppercase tracking-widest text-white/40 mb-3">
+                        Learning Goal <span className="text-white/20">(optional)</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={data.goal}
+                        onChange={(e) => setData({ ...data, goal: e.target.value })}
+                        placeholder={`e.g., "Understand the fundamentals of ${data.topic || 'this topic'}" or "Prepare for an exam"`}
+                        className="w-full px-6 py-4 rounded-2xl bg-white/5 border border-white/10 text-white placeholder-white/20 focus:outline-none focus:border-white/30 focus:bg-white/[0.07] transition-all text-lg"
+                      />
+                    </div>
+                  </RevealSection>
+                )}
+
+                {currentStep === 3 && (
+                  <RevealSection className="space-y-12">
+                    <div className="text-center">
+                      <h2 className="font-display text-4xl font-bold mb-4 tracking-tight">Medium Selection</h2>
+                      <p className="text-muted-foreground text-lg">Pick the flow that fits your current energy levels.</p>
+                    </div>
+                    <div ref={formatGridRef} className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      {formatOptions.map((option) => (
+                        <TiltCard key={option.value}>
+                          <button
+                            onClick={() => setData({ ...data, format: option.value as ContentFormat })}
+                            className={cn(
+                              'format-card w-full p-8 rounded-[2.5rem] border flex flex-col items-center gap-6 transition-all duration-500 group relative overflow-hidden',
+                              data.format === option.value
+                                ? `bg-gradient-to-br ${currentMoodColors.gradient} border-transparent shadow-2xl`
+                                : 'bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/20 text-white/60'
+                            )}
+                          >
+                            <NeuralIcon icon={option.icon} className="w-16 h-16" iconClassName="w-7 h-7" gradient={data.format === option.value ? 'from-white/20 to-white/5' : currentMoodColors.gradient} />
+                            <div className="text-center">
+                              <span className="block font-bold text-xl mb-2 text-white">{option.label}</span>
+                              <span className="text-sm opacity-60 leading-relaxed">{option.desc}</span>
+                            </div>
+                            {data.format === option.value && (
+                              <motion.div layoutId="formatActive" className="absolute inset-0 bg-white/10 mix-blend-overlay" />
+                            )}
+                          </button>
+                        </TiltCard>
+                      ))}
+                    </div>
+                  </RevealSection>
+                )}
+
+                {/* Footer Navigation */}
+                <div className="flex justify-between items-center mt-12 pt-10 border-t border-white/10">
+                  <MagneticButton variant="ghost" onClick={handleBack} className="gap-2 text-white/50 hover:text-white">
+                    <ArrowLeft className="w-5 h-5" /> Previous
+                  </MagneticButton>
+                  
+                  <MagneticButton 
                     onClick={handleNext}
                     disabled={!canProceed() || isGenerating}
-                    className="min-w-32"
+                    className={cn(
+                      "min-w-[220px] h-16 rounded-2xl font-bold text-lg shadow-2xl transition-all",
+                      canProceed() ? `bg-gradient-to-r ${currentMoodColors.gradient} text-white` : "bg-white/10 text-white/20"
+                    )}
                   >
                     {isGenerating ? (
-                      <>
-                        <Sparkles className="w-4 h-4 animate-spin" />
-                        Generating...
-                      </>
-                    ) : currentStep === steps.length - 1 ? (
-                      <>
-                        <CheckCircle2 className="w-4 h-4" />
-                        Done
-                      </>
+                      <div className="flex items-center gap-3">
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <span>Synchronizing...</span>
+                      </div>
                     ) : (
-                      <>
-                        Next
-                        <ArrowRight className="w-4 h-4" />
-                      </>
+                      <div className="flex items-center gap-3 px-6">
+                        <span>{currentStep === steps.length - 1 ? 'Unlock Path' : 'Synchronize'}</span>
+                        <ArrowRight className="w-5 h-5" />
+                      </div>
                     )}
-                  </Button>
-                </motion.div>
+                  </MagneticButton>
+                </div>
               </div>
             </motion.div>
           </AnimatePresence>
@@ -902,3 +498,5 @@ export function LearningPathCreator() {
     </div>
   );
 }
+
+

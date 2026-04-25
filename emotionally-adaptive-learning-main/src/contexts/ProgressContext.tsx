@@ -57,7 +57,27 @@ const EMOTION_RESET_MS = 4000;
 const ProgressContext = createContext<ProgressContextType | undefined>(undefined);
 
 export function ProgressProvider({ children }: { children: ReactNode }) {
-  const [history, setHistory] = useState<LearningPathHistory[]>([]);
+  const [history, setHistory] = useState<LearningPathHistory[]>(() => {
+    // Initial load from localStorage for immediate UI responsiveness
+    const saved = localStorage.getItem('moodlearn_history');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return parsed.map((p: any) => ({
+          ...p,
+          createdAt: new Date(p.createdAt),
+          completedModules: p.completedModules.map((m: any) => ({
+            ...m,
+            completedAt: new Date(m.completedAt)
+          }))
+        }));
+      } catch (e) {
+        console.error('Failed to parse local history:', e);
+        return [];
+      }
+    }
+    return [];
+  });
   const [loading, setLoading] = useState(false);
   // FIX — Problem D: tracks the current live emotion with auto-reset
   const [detectedEmotion, setDetectedEmotion] = useState<string>('neutral');
@@ -100,6 +120,11 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
     setDetectedEmotion('neutral');
   }, []);
 
+  // Save to localStorage whenever history changes
+  useEffect(() => {
+    localStorage.setItem('moodlearn_history', JSON.stringify(history));
+  }, [history]);
+
   // Clean up timer on unmount
   useEffect(() => {
     return () => {
@@ -118,28 +143,33 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
     };
   };
 
-  // ── Fetch history when user changes ─────────────────────────────────────
+  // ── Fetch history when user changes or components mount ───────────────────
   useEffect(() => {
     const fetchHistory = async () => {
+      // If no user, we don't clear history anymore (preserve local guest history)
       if (!user) {
-        setHistory([]);
         return;
       }
+      
       setLoading(true);
       try {
         const res = await fetch('/api/paths', { headers: getHeaders() });
         if (res.ok) {
           const data = await res.json();
-          setHistory(
-            data.history.map((p: any) => ({
-              ...p,
-              createdAt: new Date(p.createdAt),
-              completedModules: p.completedModules.map((m: any) => ({
-                ...m,
-                completedAt: new Date(m.completedAt),
-              })),
-            }))
-          );
+          const backendHistory = data.history.map((p: any) => ({
+            ...p,
+            createdAt: new Date(p.createdAt),
+            completedModules: p.completedModules.map((m: any) => ({
+              ...m,
+              completedAt: new Date(m.completedAt),
+            })),
+          }));
+          
+          // Merge logic: prioritize backend but keep guest paths if they don't exist in backend
+          setHistory((prev) => {
+            const guestPaths = prev.filter(p => p.id.startsWith('guest_'));
+            return [...backendHistory, ...guestPaths];
+          });
         }
       } catch (err) {
         console.error('Failed to fetch history:', err);
@@ -149,7 +179,6 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
     };
 
     fetchHistory();
-    // Clear emotion state when user switches
     clearEmotionSignal();
   }, [user, clearEmotionSignal]);
 
@@ -159,6 +188,22 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
       modules: any[];
     }
   ) => {
+    // Optimistic update for guest or temp storage
+    const tempId = user ? '' : `guest_${Date.now()}`;
+    const newPath: LearningPathHistory = {
+      ...path,
+      id: tempId || `pending_${Date.now()}`,
+      createdAt: new Date(),
+      completedModules: [],
+    };
+    
+    // For guests, save locally immediately and return
+    if (!user) {
+      setHistory((prev) => [newPath, ...prev]);
+      toast.success('Path saved to local vault');
+      return newPath.id;
+    }
+
     try {
       const res = await fetch('/api/paths', {
         method: 'POST',
@@ -168,13 +213,11 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'Failed to save path');
 
-      const newPath: LearningPathHistory = {
-        ...path,
+      const confirmedPath: LearningPathHistory = {
+        ...newPath,
         id: data.id,
-        createdAt: new Date(),
-        completedModules: [],
       };
-      setHistory((prev) => [newPath, ...prev]);
+      setHistory((prev) => [confirmedPath, ...prev]);
       return data.id;
     } catch (err: any) {
       toast.error(err.message);
@@ -183,29 +226,33 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
   };
 
   const updateModuleCompletion = async (pathId: string, module: CompletedModule) => {
+    // UI Update immediately
+    setHistory((prev) =>
+      prev.map((p) =>
+        p.id === pathId
+          ? {
+            ...p,
+            completedModules: [
+              ...p.completedModules.filter((m) => m.id !== module.id),
+              { ...module, completedAt: new Date(module.completedAt) },
+            ],
+          }
+          : p
+      )
+    );
+
+    // If guest, we are done (already saved via history useEffect)
+    if (!user || pathId.startsWith('guest_')) return;
+
     try {
       const res = await fetch(`/api/paths/${pathId}/progress`, {
         method: 'PATCH',
         headers: getHeaders(),
         body: JSON.stringify(module),
       });
-      if (!res.ok) throw new Error('Failed to update progress');
-
-      setHistory((prev) =>
-        prev.map((p) =>
-          p.id === pathId
-            ? {
-              ...p,
-              completedModules: [
-                ...p.completedModules.filter((m) => m.id !== module.id),
-                module,
-              ],
-            }
-            : p
-        )
-      );
+      if (!res.ok) throw new Error('Failed to sync progress with cloud');
     } catch (err: any) {
-      toast.error(err.message);
+      console.warn('Sync failed, progress saved locally only:', err.message);
     }
   };
 
@@ -262,3 +309,5 @@ export function useProgress() {
   }
   return context;
 }
+
+
