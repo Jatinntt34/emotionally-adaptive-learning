@@ -109,8 +109,9 @@ try:
     _mp_face_det    = mp.solutions.face_detection
     _mp_face_mesh   = mp.solutions.face_mesh
     print("MediaPipe loaded — face alignment + detection enabled")
-except ImportError:
-    print("MediaPipe not installed — pip install mediapipe for +5% accuracy")
+except Exception as e:
+    print(f"MediaPipe initialization failed: {e}")
+    print("Continuing without MediaPipe face alignment...")
 
 # =============================================================================
 # THREAD POOL  (keeps async WS loop non-blocking during ML inference)
