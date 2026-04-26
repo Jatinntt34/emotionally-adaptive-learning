@@ -126,11 +126,7 @@ INITIAL_BACKOFF_TIME = 2
 # =============================================================================
 app = FastAPI()
 
-ALLOWED_ORIGINS = [
-    origin.strip()
-    for origin in os.environ.get("ALLOWED_ORIGINS", "http://localhost:8080,http://localhost:5173").split(",")
-    if origin.strip()
-]
+ALLOWED_ORIGINS = ["*"]
 
 app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_credentials=True,
                    allow_methods=["*"], allow_headers=["*"])
