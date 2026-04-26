@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { useAuth } from './AuthContext';
 import { toast } from 'sonner';
+import { apiUrl } from '@/config';
 
 export interface CompletedModule {
   id: number;
@@ -153,7 +154,7 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
       
       setLoading(true);
       try {
-        const res = await fetch('/api/paths', { headers: getHeaders() });
+        const res = await fetch(apiUrl('/api/paths'), { headers: getHeaders() });
         if (res.ok) {
           const data = await res.json();
           const backendHistory = data.history.map((p: any) => ({
@@ -205,7 +206,7 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const res = await fetch('/api/paths', {
+      const res = await fetch(apiUrl('/api/paths'), {
         method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify(path),
@@ -245,7 +246,7 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
     if (!user || pathId.startsWith('guest_')) return;
 
     try {
-      const res = await fetch(`/api/paths/${pathId}/progress`, {
+      const res = await fetch(apiUrl(`/api/paths/${pathId}/progress`), {
         method: 'PATCH',
         headers: getHeaders(),
         body: JSON.stringify(module),
@@ -270,7 +271,7 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
 
   const deletePath = async (pathId: string) => {
     try {
-      const res = await fetch(`/api/paths/${pathId}`, {
+      const res = await fetch(apiUrl(`/api/paths/${pathId}`), {
         method: 'DELETE',
         headers: getHeaders(),
       });

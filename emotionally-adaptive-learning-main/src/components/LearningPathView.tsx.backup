@@ -11,6 +11,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
 import { ModuleQuiz } from '@/components/ModuleQuiz';
+import { apiUrl, authHeaders } from '@/config';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -289,7 +290,7 @@ export function LearningPathView() {
   async function fetchVideoId(moduleId: number, q: string) {
     setVideoIds(p => ({ ...p, [moduleId]: 'loading' }));
     try {
-      const res = await fetch(`/api/youtube-search?q=${encodeURIComponent(q)}`);
+      const res = await fetch(apiUrl(`/api/youtube-search?q=${encodeURIComponent(q)}`), { headers: authHeaders() });
       const data = await res.json();
       setVideoIds(p => ({ ...p, [moduleId]: data.videoId ?? 'error' }));
     } catch { setVideoIds(p => ({ ...p, [moduleId]: 'error' })); }
@@ -299,9 +300,9 @@ export function LearningPathView() {
     if (!pathData) { setLoading(false); return; }
     setLoading(true); setError(null); setIsFallback(false);
     try {
-      const res = await fetch('/api/generate-path', {
+      const res = await fetch(apiUrl('/api/generate-path'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({
           topic: pathData.topic, goal: pathData.goal, mood: pathData.mood,
           format: pathData.format, speed: pathData.speed,

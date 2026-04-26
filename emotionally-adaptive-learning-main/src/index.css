@@ -22,6 +22,11 @@ html {
 @tailwind utilities;
 
 @layer base {
+  * {
+    touch-action: pan-y;
+    -webkit-tap-highlight-color: transparent;
+  }
+  
   :root {
     /* Dark Theme Base */
     --background: 222 47% 6%;

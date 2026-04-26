@@ -18,7 +18,7 @@ Run:
 import os, sys, json, re, time, random, hashlib, base64
 import asyncio, warnings, urllib.request, urllib.parse as _uparse
 from pathlib import Path
-from collections import Counter
+from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional
 from datetime import datetime, timedelta
@@ -33,7 +33,7 @@ import cv2
 import numpy as np
 import uvicorn, bcrypt, jwt, librosa
 from motor.motor_asyncio import AsyncIOMotorClient
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException, status
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
 from bson import ObjectId
@@ -124,7 +124,14 @@ INITIAL_BACKOFF_TIME = 2
 # FASTAPI
 # =============================================================================
 app = FastAPI()
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True,
+
+ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get("ALLOWED_ORIGINS", "http://localhost:8080,http://localhost:5173").split(",")
+    if origin.strip()
+]
+
+app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_credentials=True,
                    allow_methods=["*"], allow_headers=["*"])
 
 @app.get("/")
@@ -135,24 +142,24 @@ async def root():
 @app.get("/health")
 @app.get("/api/health")
 async def health_check():
-    h = {"status": "healthy", "timestamp": datetime.utcnow()}
     try:
-        await db_client.admin.command("ping"); h["mongodb"] = "connected"
-    except Exception as e:
-        h["mongodb"] = f"error: {e}"; h["status"] = "degraded"
-    h["facial_model"] = "loaded" if facial_model  is not None else "not_loaded"
-    h["facial_mode"]  = _facial_mode
-    h["voice_model"]  = "loaded" if voice_model   is not None else "not_loaded"
-    if None in (facial_model, voice_model): h["status"] = "degraded"
-    return h
+        await db_client.admin.command("ping")
+        return {"status": "healthy"}
+    except Exception:
+        return {"status": "degraded"}
 
 # =============================================================================
 # DATABASE
 # =============================================================================
 MONGO_URI                   = os.environ.get("MONGODB_URI")
-JWT_SECRET                  = os.environ.get("JWT_SECRET", "dev_secret_change_in_prod")
+JWT_SECRET                  = os.environ.get("JWT_SECRET")
 ALGORITHM                   = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", 60 * 24))
+
+if not MONGO_URI:
+    raise RuntimeError("FATAL: MONGODB_URI not set. Add it to local .env or deployment secrets.")
+if not JWT_SECRET:
+    raise RuntimeError("FATAL: JWT_SECRET not set. Add it to local .env or deployment secrets.")
 
 db_client    = AsyncIOMotorClient(MONGO_URI)
 db           = db_client.get_database("moodlearn_db")
@@ -174,6 +181,15 @@ def create_access_token(data):
     d = {**data, "exp": datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)}
     return jwt.encode(d, JWT_SECRET, algorithm=ALGORITHM)
 
+_auth_attempts = defaultdict(list)
+
+def _check_rate_limit(ip: str, max_attempts: int = 5, window: int = 60):
+    now = time.time()
+    _auth_attempts[ip] = [t for t in _auth_attempts[ip] if now - t < window]
+    if len(_auth_attempts[ip]) >= max_attempts:
+        raise HTTPException(status_code=429, detail="Too many attempts. Wait 60 seconds.")
+    _auth_attempts[ip].append(now)
+
 async def get_current_user(token: str = Depends(oauth2_scheme)):
     exc = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                         detail="Could not validate credentials",
@@ -186,6 +202,26 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     user = await users_col.find_one({"email": email})
     if not user: raise exc
     return user
+
+async def _authenticate_websocket(websocket: WebSocket):
+    token = websocket.query_params.get("token")
+    if not token:
+        await websocket.close(code=1008)
+        return None
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[ALGORITHM])
+        email = payload.get("sub")
+        if not email:
+            await websocket.close(code=1008)
+            return None
+        user = await users_col.find_one({"email": email})
+        if not user:
+            await websocket.close(code=1008)
+            return None
+        return user
+    except jwt.PyJWTError:
+        await websocket.close(code=1008)
+        return None
 
 # =============================================================================
 # PYDANTIC MODELS
@@ -444,7 +480,8 @@ def _predict_voice_sync(audio_16k: np.ndarray) -> tuple:
 # AUTH ROUTES
 # =============================================================================
 @app.post("/api/auth/signup")
-async def signup(user: UserAuth):
+async def signup(user: UserAuth, request: Request):
+    _check_rate_limit(request.client.host if request.client else "unknown")
     user.email = user.email.lower().strip()
     if await users_col.find_one({"email": user.email}):
         raise HTTPException(400, "Email already registered")
@@ -454,7 +491,8 @@ async def signup(user: UserAuth):
             "user": {"email": user.email, "displayName": user.displayName}}
 
 @app.post("/api/auth/login")
-async def login(user: UserAuth):
+async def login(user: UserAuth, request: Request):
+    _check_rate_limit(request.client.host if request.client else "unknown")
     user.email = user.email.lower().strip()
     db_user = await users_col.find_one({"email": user.email})
     if not db_user or not verify_password(user.password, db_user["password"]):
@@ -472,6 +510,8 @@ async def get_me(current_user: dict = Depends(get_current_user)):
 # =============================================================================
 @app.websocket("/ws/emotion")
 async def facial_ws(websocket: WebSocket):
+    if not await _authenticate_websocket(websocket):
+        return
     await websocket.accept()
     print(f"[Facial] Client connected")
     _facial_ensemble.clear()
@@ -516,6 +556,8 @@ async def facial_ws(websocket: WebSocket):
 # =============================================================================
 @app.websocket("/ws/voice")
 async def voice_ws(websocket: WebSocket):
+    if not await _authenticate_websocket(websocket):
+        return
     await websocket.accept()
     print(f"[Voice] Client connected")
 
@@ -638,7 +680,7 @@ def _sanitize_search_query(q: str) -> str:
     return q.strip()
 
 @app.get("/api/youtube-search")
-async def youtube_search(q: str, topic: str = ""):
+async def youtube_search(q: str, topic: str = "", current_user: dict = Depends(get_current_user)):
     yt_key = os.environ.get("YOUTUBE_API_KEY")
     clean_q = _sanitize_search_query(q)
     if not clean_q: clean_q = q.split(':')[0].split('—')[0].strip()[:50]
@@ -1141,7 +1183,7 @@ def _generate_article_content(topic, title, mood, difficulty):
 # GENERATE PATH
 # =============================================================================
 @app.post("/api/generate-path")
-async def generate_path(data: PathRequest):
+async def generate_path(data: PathRequest, current_user: dict = Depends(get_current_user)):
     cache_hash = hashlib.md5(f"{data.topic}|{data.goal}|{data.mood}|{data.speed}|{data.format}|{data.suggestedDifficulty}".encode()).hexdigest()
     cache_file = CACHE_DIR / f"{cache_hash}.json"
 
@@ -1277,7 +1319,7 @@ class NextTopicRequest(BaseModel):
     completedTopics: list = []
 
 @app.post("/api/suggest-next-topics")
-async def suggest_next_topics(data: NextTopicRequest):
+async def suggest_next_topics(data: NextTopicRequest, current_user: dict = Depends(get_current_user)):
     category = _detect_topic_category(data.topic)
 
     if GENAI_CLIENT:
@@ -1318,4 +1360,5 @@ async def suggest_next_topics(data: NextTopicRequest):
     return {"status": "success", "suggestions": suggestions}
 
 if __name__ == "__main__":
-    uvicorn.run("api:app", host="0.0.0.0", port=8000, reload=False, timeout_keep_alive=300)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("api:app", host="0.0.0.0", port=port, reload=False, timeout_keep_alive=300)

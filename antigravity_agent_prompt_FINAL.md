@@ -27,7 +27,7 @@ Read every section carefully before touching any file.
 Once done, run the agent.
 
 ---
-this is the api key -AIzaSyAfe7kIpAC8StRcD-Haj3FNQN3npLaidEU
+Do not paste the real API key into this file. Store it only in `.env` locally or in deployment secrets.
 
 ## Project Structure You Need to Know
 

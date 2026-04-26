@@ -148,3 +148,8 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+
+# Deployment
+deploy_hf.py
+hf-deploy/
+requirements-prod.txt

@@ -13,9 +13,10 @@ except ImportError:
 # 2. Force reload environment variables
 load_dotenv(override=True)
 
-# THE KEY YOU PROVIDED (Verified)
-PROVIDED_KEY = "AIzaSyAfe7kIpAC8StRcD-Haj3FNQN3npLaidEU"
-API_KEY = PROVIDED_KEY # Force use the provided key
+API_KEY = os.environ.get("GEMINI_API_KEY")
+if not API_KEY:
+    print("ERROR: GEMINI_API_KEY is not set in .env or environment variables.")
+    sys.exit(1)
 
 print(f"--- DEBUGGING CONNECTION (NEW SDK) ---")
 print(f"Python Path: {sys.executable}")

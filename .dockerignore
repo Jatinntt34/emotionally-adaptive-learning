@@ -1,0 +1,19 @@
+.env
+.venv
+__pycache__/
+*.pyc
+.git/
+.agent/
+.gemini/
+.gsd/
+.vscode/
+logs/
+cache/
+datasets/
+audio models and  dataset/
+emotionally-adaptive-learning-main/node_modules/
+emotionally-adaptive-learning-main/dist/
+models/cache/
+models/voice_tmp/
+models/voice_model/checkpoint-*/
+*.log

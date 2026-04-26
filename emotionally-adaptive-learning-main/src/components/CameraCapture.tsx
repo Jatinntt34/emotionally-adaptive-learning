@@ -4,6 +4,7 @@ import { useMood, MoodType } from '@/contexts/MoodContext';
 import { useEmotionTimer } from '@/hooks/useEmotionTimer';
 import { Camera, CameraOff, Mic, MicOff, AlertCircle, Clock, CheckCircle2, ScanFace, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { WS_BASE } from '@/config';
 
 const EMOTION_TO_MOOD: Record<string, MoodType> = {
   angry: 'anxious',
@@ -25,8 +26,6 @@ const NEURAL_PROMPTS = [
 ];
 
 const TARGET_SR = 16000;
-const WS_URL = `ws://127.0.0.1:8000/ws/emotion`;
-const VOICE_WS_URL = `ws://127.0.0.1:8000/ws/voice`;
 
 export function CameraCapture() {
   const location = useLocation();
@@ -84,8 +83,14 @@ export function CameraCapture() {
   // --- CAMERA WS LOGIC ---
   const connectWebSocket = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
+    const token = localStorage.getItem('moodlearn_token');
+    if (!token) {
+      setError('Please log in to use camera emotion tracking.');
+      setIsActive(false);
+      return;
+    }
     try {
-      const ws = new WebSocket(WS_URL);
+      const ws = new WebSocket(`${WS_BASE}/ws/emotion?token=${encodeURIComponent(token)}`);
       ws.onopen = () => { setError(null); };
       ws.onmessage = (event) => {
         try {
@@ -156,8 +161,14 @@ export function CameraCapture() {
   // to the backend voice WS for live emotion detection.
 
   const connectVoiceWs = useCallback((): WebSocket | null => {
+    const token = localStorage.getItem('moodlearn_token');
+    if (!token) {
+      setError('Please log in to use voice emotion tracking.');
+      setIsMicActive(false);
+      return null;
+    }
     try {
-      const ws = new WebSocket('ws://127.0.0.1:8000/ws/voice');
+      const ws = new WebSocket(`${WS_BASE}/ws/voice?token=${encodeURIComponent(token)}`);
       ws.onopen = () => {
         console.log('[Voice] WS connected');
       };

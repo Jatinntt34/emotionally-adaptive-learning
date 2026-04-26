@@ -42,6 +42,7 @@ import { MagneticButton } from './ui/MagneticButton';
 import { RevealSection } from './ui/RevealSection';
 import { TiltCard } from './ui/TiltCard';
 import { NeuralIcon } from './ui/NeuralIcon';
+import { apiUrl, authHeaders } from '@/config';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -423,8 +424,15 @@ export function LearningPathView() {
 
   async function fetchVideoId(moduleId: number, q: string) {
     setVideoIds(p => ({ ...p, [moduleId]: 'loading' }));
+    if (!localStorage.getItem('moodlearn_token')) {
+      setVideoIds(p => ({ ...p, [moduleId]: 'error' }));
+      setVideoFallbacks(p => ({ ...p, [moduleId]: `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}` }));
+      return;
+    }
     try {
-      const res = await fetch(`/api/youtube-search?q=${encodeURIComponent(q)}&topic=${encodeURIComponent(pathData.topic)}`);
+      const res = await fetch(apiUrl(`/api/youtube-search?q=${encodeURIComponent(q)}&topic=${encodeURIComponent(pathData.topic)}`), {
+        headers: authHeaders(),
+      });
       const data = await res.json();
       if (data.videoId) {
         setVideoIds(p => ({ ...p, [moduleId]: data.videoId }));
@@ -445,12 +453,19 @@ export function LearningPathView() {
   async function fetchLearningPath() {
     if (!pathData.topic) { setLoading(false); return; }
     setLoading(true); setError(null); setIsFallback(false);
+    if (!localStorage.getItem('moodlearn_token')) {
+      setIsFallback(true);
+      setError('Login required for AI generation. Using offline path.');
+      setupPathState(generateModules(pathData.topic, pathData.format));
+      setLoading(false);
+      return;
+    }
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 3 * 60 * 1000); 
     try {
-      const res = await fetch('/api/generate-path', {
+      const res = await fetch(apiUrl('/api/generate-path'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         signal: controller.signal,
         body: JSON.stringify({
           topic: pathData.topic, goal: pathData.goal, mood: pathData.mood,
@@ -581,10 +596,10 @@ export function LearningPathView() {
 
   // Fetch next-topic suggestions when path is fully completed
   useEffect(() => {
-    if (progress === 100 && modules.length > 0 && nextTopics.length === 0 && pathData.topic) {
-      fetch('/api/suggest-next-topics', {
+    if (progress === 100 && modules.length > 0 && nextTopics.length === 0 && pathData.topic && localStorage.getItem('moodlearn_token')) {
+      fetch(apiUrl('/api/suggest-next-topics'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ topic: pathData.topic, goal: pathData.goal })
       })
         .then(r => r.json())

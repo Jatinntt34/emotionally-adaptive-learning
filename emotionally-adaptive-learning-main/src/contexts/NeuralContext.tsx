@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useRef, useEff
 import { useLocation } from 'react-router-dom';
 import { useMood, MoodType } from '@/contexts/MoodContext';
 import { useEmotionTimer } from '@/hooks/useEmotionTimer';
+import { WS_BASE, apiUrl, authHeaders } from '@/config';
 
 const EMOTION_TO_MOOD: Record<string, MoodType> = {
   angry: 'anxious',
@@ -101,8 +102,14 @@ export function NeuralProvider({ children }: { children: React.ReactNode }) {
 
   const connectWebSocket = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
+    const token = localStorage.getItem('moodlearn_token');
+    if (!token) {
+      setError('Please log in to use camera emotion tracking.');
+      setIsCamActive(false);
+      return;
+    }
     try {
-      const ws = new WebSocket('ws://127.0.0.1:8000/ws/emotion');
+      const ws = new WebSocket(`${WS_BASE}/ws/emotion?token=${encodeURIComponent(token)}`);
       ws.onopen = () => { setError(null); };
       ws.onmessage = (event) => {
         try {
@@ -192,8 +199,14 @@ export function NeuralProvider({ children }: { children: React.ReactNode }) {
   }, [connectWebSocket, sendFrame]);
 
   const connectVoiceWs = useCallback((): WebSocket | null => {
+    const token = localStorage.getItem('moodlearn_token');
+    if (!token) {
+      setError('Please log in to use voice emotion tracking.');
+      setIsMicActive(false);
+      return null;
+    }
     try {
-      const ws = new WebSocket('ws://127.0.0.1:8000/ws/voice');
+      const ws = new WebSocket(`${WS_BASE}/ws/voice?token=${encodeURIComponent(token)}`);
       ws.onopen = () => console.log('[Voice] WS connected');
       ws.onmessage = (ev) => {
         try {
