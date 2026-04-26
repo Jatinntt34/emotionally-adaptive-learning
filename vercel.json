@@ -1,0 +1,12 @@
+{
+  "framework": "vite",
+  "buildCommand": "cd emotionally-adaptive-learning-main && npm install && npm run build",
+  "outputDirectory": "emotionally-adaptive-learning-main/dist",
+  "installCommand": "cd emotionally-adaptive-learning-main && npm install",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
