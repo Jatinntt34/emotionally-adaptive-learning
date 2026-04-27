@@ -377,7 +377,7 @@ export function LearningPathView() {
     currentEmotion, confidence, 
     voiceEmotion, voiceConfidence,
     liveEmotion, liveConfidence,
-    videoRef, audioLevel 
+    videoRef, audioLevel, stream
   } = useNeuralTracking();
 
   const toggleMic = () => setIsMicActive(!isMicActive);
@@ -703,6 +703,67 @@ export function LearningPathView() {
           </MagneticButton>
         </div>
 
+        {/* Mobile-Only Summary Header */}
+        <div className="lg:hidden mb-8 grid grid-cols-2 gap-4">
+          <div className="col-span-2 bg-black/40 backdrop-blur-3xl rounded-[2rem] border border-white/10 p-5 shadow-2xl relative overflow-hidden group">
+            <div className={cn("absolute inset-0 opacity-10 bg-gradient-to-br", currentMoodColors.gradient)} />
+            <div className="relative z-10">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex flex-col">
+                  <span className="text-[10px] uppercase font-mono tracking-widest text-white/40">Path Progress</span>
+                  <span className="text-3xl font-black tracking-tighter text-white">{Math.round(progress)}%</span>
+                </div>
+                <div className="text-right flex flex-col items-end">
+                  <span className="text-[10px] uppercase font-mono tracking-widest text-white/40">Modules</span>
+                  <span className="text-xl font-bold tracking-tight text-white/90">{completedCount} / {modules.length}</span>
+                </div>
+              </div>
+              <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden p-[1px] border border-white/5">
+                <motion.div 
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progress}%` }}
+                  className={cn("h-full rounded-full", currentMoodColors.gradient)}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-black/40 backdrop-blur-3xl rounded-[2rem] border border-white/10 p-5 flex flex-col items-center justify-center gap-3 relative overflow-hidden">
+            <div className={cn("absolute inset-0 opacity-5 bg-gradient-to-br", currentMoodColors.gradient)} />
+            <div className="relative z-10 w-full h-full flex flex-col items-center gap-2">
+              <span className="text-[9px] uppercase font-mono tracking-widest text-white/30">Mirror</span>
+              <div className="scale-75 origin-center">
+                <NeuralMirror 
+                  stream={stream}
+                  isActive={isCamActive}
+                  emotion={liveEmotion}
+                  confidence={liveConfidence}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-black/40 backdrop-blur-3xl rounded-[2rem] border border-white/10 p-5 flex flex-col items-center justify-center gap-2 relative overflow-hidden">
+             <div className={cn("absolute inset-0 opacity-5 bg-gradient-to-br", currentMoodColors.gradient)} />
+             <div className="relative z-10 text-center">
+                <span className="text-[9px] uppercase font-mono tracking-widest text-white/30 block mb-1">Emotion</span>
+                <span className="text-sm font-black uppercase tracking-tighter text-primary truncate max-w-full">
+                  {isCamActive ? liveEmotion : 'Inert'}
+                </span>
+                <div className="flex items-center justify-center gap-1 mt-1">
+                   {[1,2,3].map(i => (
+                     <motion.div 
+                       key={i}
+                       animate={{ height: isCamActive ? [4, 12, 4] : 4 }}
+                       transition={{ duration: 0.5, repeat: Infinity, delay: i * 0.1 }}
+                       className="w-0.5 rounded-full bg-primary/40"
+                     />
+                   ))}
+                </div>
+             </div>
+          </div>
+        </div>
+
         {/* Header Hero Section */}
         <RevealSection>
           <TiltCard className="relative overflow-hidden group mb-12 rounded-[2.5rem] border border-white/10 bg-white/5 backdrop-blur-lg">
@@ -760,7 +821,7 @@ export function LearningPathView() {
                    <div className="flex justify-center">
                       <div className="scale-95 origin-center">
                         <NeuralMirror 
-                          videoRef={videoRef}
+                          stream={stream}
                           isActive={isCamActive}
                           emotion={liveEmotion}
                           confidence={liveConfidence}
@@ -771,7 +832,7 @@ export function LearningPathView() {
 
                  <div className="hidden lg:flex items-center gap-10">
                     <NeuralMirror 
-                      videoRef={videoRef}
+                      stream={stream}
                       isActive={isCamActive}
                       emotion={liveEmotion}
                       confidence={liveConfidence}
@@ -1280,41 +1341,24 @@ export function LearningPathView() {
 
 // ─── Sub-Components ──────────────────────────────────────────────────────────
 
-function NeuralMirror({ videoRef, isActive, emotion, confidence }: { videoRef: React.RefObject<HTMLVideoElement>; isActive: boolean; emotion: string; confidence: number }) {
-  // Use a LOCAL ref for this video element so we don't steal the shared ref
-  // from the NeuralDock. Copy the stream from the shared videoRef instead.
+function NeuralMirror({ stream, isActive, emotion, confidence }: { stream: MediaStream | null; isActive: boolean; emotion: string; confidence: number }) {
   const localVideoRef = React.useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = React.useState(false);
 
   React.useEffect(() => {
-    if (!isActive || !localVideoRef.current) {
-      setIsPlaying(false);
-      return;
-    }
-
-    const srcVideo = videoRef.current;
-    const destVideo = localVideoRef.current;
-
-    const syncStream = async () => {
-      if (srcVideo?.srcObject && destVideo && destVideo.srcObject !== srcVideo.srcObject) {
-        destVideo.srcObject = srcVideo.srcObject;
-        try {
-          await destVideo.play();
-          setIsPlaying(true);
-        } catch (err) {
-          console.warn("NeuralMirror auto-play prevented:", err);
+    if (localVideoRef.current) {
+      if (isActive && stream) {
+        if (localVideoRef.current.srcObject !== stream) {
+          localVideoRef.current.srcObject = stream;
+          localVideoRef.current.play().catch(err => console.warn("NeuralMirror play failed:", err));
         }
+        setIsPlaying(true);
+      } else {
+        localVideoRef.current.srcObject = null;
+        setIsPlaying(false);
       }
-    };
-
-    syncStream();
-    
-    const interval = setInterval(syncStream, 1000);
-    return () => {
-      clearInterval(interval);
-      if (destVideo) destVideo.srcObject = null;
-    };
-  }, [isActive, videoRef]);
+    }
+  }, [isActive, stream]);
 
   return (
     <div className="relative group">

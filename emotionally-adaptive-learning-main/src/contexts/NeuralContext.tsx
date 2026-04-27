@@ -32,6 +32,7 @@ interface NeuralContextType {
   audioLevel: number;
   liveEmotion: string;
   liveConfidence: number;
+  stream: MediaStream | null;
 }
 
 const NeuralContext = createContext<NeuralContextType | undefined>(undefined);
@@ -47,6 +48,7 @@ export function NeuralProvider({ children }: { children: React.ReactNode }) {
   const [voiceEmotion, setVoiceEmotion] = useState<string>('Ready');
   const [voiceConfidence, setVoiceConfidence] = useState<number>(0);
   const [audioLevel, setAudioLevel] = useState(0);
+  const [stream, setStream] = useState<MediaStream | null>(null);
   const lastAudioUpdateRef = useRef<number>(0);
 
   const normalizeConfidence = (val: any) => {
@@ -81,7 +83,7 @@ export function NeuralProvider({ children }: { children: React.ReactNode }) {
   const frameIntervalRef = useRef<number | null>(null);
 
   const isLearningPath = location.pathname.includes('/learning-path');
-  const cooldownDuration = isLearningPath ? 180 : 30;
+  const cooldownDuration = isLearningPath ? 45 : 30; // Reduced from 180s to 45s for better responsiveness
 
   const handleMoodLocked = useCallback((winnerMapped: MoodType, winnerRaw: string) => {
     setMood(winnerMapped);
@@ -165,7 +167,11 @@ export function NeuralProvider({ children }: { children: React.ReactNode }) {
 
   const stopCamera = useCallback(() => {
     if (frameIntervalRef.current) { window.clearInterval(frameIntervalRef.current); frameIntervalRef.current = null; }
-    if (streamRef.current) { streamRef.current.getTracks().forEach(track => track.stop()); streamRef.current = null; }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+      setStream(null);
+    }
     if (videoRef.current) videoRef.current.srcObject = null;
     if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
   }, []);
@@ -176,6 +182,7 @@ export function NeuralProvider({ children }: { children: React.ReactNode }) {
       setCurrentEmotion('Starting camera...');
       const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240, facingMode: 'user' } });
       streamRef.current = stream;
+      setStream(stream);
       setError(null);
       
       // Sync ref immediately if available
@@ -321,12 +328,16 @@ export function NeuralProvider({ children }: { children: React.ReactNode }) {
     return () => stopCamera();
   }, [isCamActive, startCamera, stopCamera]);
 
-  // Sync video element with stream when it mounts/unmounts
+  // Sync video element with stream when it mounts or stream changes
   useEffect(() => {
-    if (isCamActive && streamRef.current && videoRef.current && !videoRef.current.srcObject) {
-      videoRef.current.srcObject = streamRef.current;
+    if (videoRef.current && stream) {
+      if (videoRef.current.srcObject !== stream) {
+        videoRef.current.srcObject = stream;
+      }
+    } else if (videoRef.current) {
+      videoRef.current.srcObject = null;
     }
-  }, [isCamActive, videoRef.current]);
+  }, [stream, videoRef.current]);
 
   useEffect(() => {
     if (isMicActive) startMic();
@@ -348,11 +359,11 @@ export function NeuralProvider({ children }: { children: React.ReactNode }) {
     liveEmotion, liveConfidence,
     timerState, timeLeft,
     error, videoRef, canvasRef,
-    audioLevel
+    audioLevel, stream
   }), [
     isCamActive, isMicActive, currentEmotion, confidence, 
     voiceEmotion, voiceConfidence, liveEmotion, liveConfidence, 
-    timerState, timeLeft, error, audioLevel
+    timerState, timeLeft, error, audioLevel, stream
   ]);
 
   return <NeuralContext.Provider value={value}>{children}</NeuralContext.Provider>;
