@@ -355,8 +355,11 @@ export function MoodProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setMood = useCallback((newMood: MoodType, isManual: boolean = false) => {
-    // If it's an AI update (not manual) and we have a manual lock, ignore it
-    if (!isManual && isManualLock) return;
+    // If it's an AI update (not manual) and we have a manual lock, clear the lock and proceed
+    // This ensures that automated detection updates the UI buttons as requested by the user
+    if (!isManual && isManualLock) {
+      setIsManualLock(false);
+    }
 
     if (newMood === mood) return;
 
