@@ -8,6 +8,7 @@ interface MagneticButtonProps {
   onClick?: () => void;
   variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link" | "hero" | "glass" | "mood";
   size?: "default" | "sm" | "lg" | "xl" | "icon";
+  disabled?: boolean;
 }
 
 export function MagneticButton({ 
@@ -15,12 +16,13 @@ export function MagneticButton({
   className, 
   onClick, 
   variant = "hero", 
-  size = "xl" 
+  size = "xl",
+  disabled = false
 }: MagneticButtonProps) {
   const buttonRef = useRef<HTMLButtonElement>(null);
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!buttonRef.current) return;
+    if (!buttonRef.current || disabled) return;
     const { clientX, clientY } = e;
     const { left, top, width, height } = buttonRef.current.getBoundingClientRect();
     const x = clientX - (left + width / 2);
@@ -35,6 +37,7 @@ export function MagneticButton({
   };
 
   const handleMouseLeave = () => {
+    if (disabled) return;
     gsap.to(buttonRef.current, {
       x: 0,
       y: 0,
@@ -49,6 +52,7 @@ export function MagneticButton({
       variant={variant}
       size={size}
       onClick={onClick}
+      disabled={disabled}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       className={className}

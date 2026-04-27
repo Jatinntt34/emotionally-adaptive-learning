@@ -26,7 +26,7 @@ export const NeuralIcon: React.FC<NeuralIconProps> = ({
       <div 
         className={cn(
           "absolute -inset-4 rounded-full blur-2xl opacity-20 group-hover:opacity-40 transition-opacity duration-700",
-          moodColor ? "" : `bg-gradient-to-br ${gradient}`
+          moodColor ? "" : (gradient?.startsWith('from-') ? `bg-gradient-to-br ${gradient}` : `bg-gradient-to-br ${gradient}`)
         )}
         style={moodColor ? { backgroundColor: moodColor } : {}}
       />
@@ -37,7 +37,7 @@ export const NeuralIcon: React.FC<NeuralIconProps> = ({
         className={cn(
           "relative w-full h-full rounded-[1.75rem] border border-white/10 bg-[#0A0A10]/80 backdrop-blur-xl flex items-center justify-center overflow-hidden shadow-2xl transition-all duration-500",
           "after:absolute after:inset-0 after:bg-gradient-to-br after:opacity-10 after:group-hover:opacity-20 after:transition-opacity",
-          moodColor ? "" : `after:${gradient}`
+          moodColor ? "" : (gradient?.includes('from-') ? gradient.split(' ').map(part => `after:${part}`).join(' ') : `after:from-primary after:to-orange-500`)
         )}
       >
         {/* Inner Mesh Accent */}

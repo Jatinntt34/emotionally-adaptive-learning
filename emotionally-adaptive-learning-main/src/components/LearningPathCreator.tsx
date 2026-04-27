@@ -117,8 +117,8 @@ export function LearningPathCreator() {
 
   const handleMoodLocked = useCallback((winnerMapped: MoodType, winnerRaw: string) => {
     setMood(winnerMapped);
-    setData(prev => ({ ...prev, mood: winnerMapped }));
     setDetectedRawEmotion(winnerRaw);
+    setData(prev => ({ ...prev, mood: winnerMapped }));
     toast.success(`Mood synchronized: ${winnerMapped}`);
   }, [setMood, setDetectedRawEmotion]);
 
@@ -265,7 +265,10 @@ export function LearningPathCreator() {
                           placeholder="What do you want to learn today?"
                           className="h-24 pl-16 pr-8 text-2xl rounded-[2.5rem] bg-white/5 border-white/10 focus:border-primary/50 focus:bg-white/10 transition-all duration-500 placeholder:text-white/20"
                           value={data.topic}
-                          onChange={(e) => setData({ ...data, topic: e.target.value })}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setData(prev => ({ ...prev, topic: val }));
+                          }}
                           onKeyDown={(e) => e.key === 'Enter' && canProceed() && handleNext()}
                         />
                       </div>
@@ -275,7 +278,7 @@ export function LearningPathCreator() {
                       {['Generative AI', 'Deep Meditation', 'Neuroscience', 'Creative Writing'].map((tag) => (
                         <button
                           key={tag}
-                          onClick={() => setData({ ...data, topic: tag })}
+                          onClick={() => setData(prev => ({ ...prev, topic: tag }))}
                           className="px-5 py-2.5 rounded-full bg-white/5 border border-white/10 hover:bg-primary/20 hover:border-primary/40 transition-all text-sm font-medium"
                         >
                           {tag}
@@ -376,7 +379,7 @@ export function LearningPathCreator() {
                               key={moodType}
                               onClick={() => {
                                 setMood(moodType as MoodType);
-                                setData({ ...data, mood: moodType as MoodType });
+                                setData(prev => ({ ...prev, mood: moodType as MoodType }));
                               }}
                               className={cn(
                                 "flex items-center gap-3 p-4 rounded-2xl border transition-all text-left group",
@@ -398,28 +401,28 @@ export function LearningPathCreator() {
                 {currentStep === 2 && (
                   <RevealSection className="space-y-12">
                     <div className="text-center">
-                      <h2 className="font-display text-4xl font-bold mb-4 tracking-tight">Pace & Goal</h2>
-                      <p className="text-muted-foreground text-lg">Set your learning speed and define what you want to achieve.</p>
+                      <h2 className="font-display text-4xl font-bold mb-4 tracking-tight text-white">Pace & Goal</h2>
+                      <p className="text-white/60 text-lg">Set your learning speed and define what you want to achieve.</p>
                     </div>
                     <div ref={speedGridRef} className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       {speedOptions.map((option) => (
                         <TiltCard key={option.value}>
                           <button
-                            onClick={() => setData({ ...data, speed: option.value })}
+                            onClick={() => setData(prev => ({ ...prev, speed: option.value }))}
                             className={cn(
                               'speed-card w-full p-8 rounded-[2.5rem] border flex flex-col items-center gap-6 transition-all duration-500 group relative overflow-hidden',
                               data.speed === option.value
-                                ? `bg-gradient-to-br ${currentMoodColors.gradient} border-transparent shadow-2xl`
+                                ? `bg-gradient-to-br ${(currentMoodColors && currentMoodColors.gradient) || 'from-primary to-orange-500'} border-transparent shadow-2xl`
                                 : 'bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/20 text-white/60'
                             )}
                           >
-                            <NeuralIcon icon={option.icon} className="w-16 h-16" iconClassName="w-7 h-7" gradient={data.speed === option.value ? 'from-white/20 to-white/5' : currentMoodColors.gradient} />
+                            <NeuralIcon icon={option.icon} className="w-16 h-16" iconClassName="w-7 h-7" gradient={data.speed === option.value ? 'from-white/20 to-white/5' : (currentMoodColors?.gradient || 'from-primary to-orange-500')} />
                             <div className="text-center">
                               <span className="block font-bold text-xl mb-2 text-white">{option.label}</span>
                               <span className="text-sm opacity-60 leading-relaxed">{option.desc}</span>
                             </div>
                             {data.speed === option.value && (
-                              <motion.div layoutId="speedActive" className="absolute inset-0 bg-white/10 mix-blend-overlay" />
+                              <div className="absolute inset-0 bg-white/10 mix-blend-overlay pointer-events-none" />
                             )}
                           </button>
                         </TiltCard>
@@ -432,7 +435,10 @@ export function LearningPathCreator() {
                       <input
                         type="text"
                         value={data.goal}
-                        onChange={(e) => setData({ ...data, goal: e.target.value })}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setData(prev => ({ ...prev, goal: val }));
+                        }}
                         placeholder={`e.g., "Understand the fundamentals of ${data.topic || 'this topic'}" or "Prepare for an exam"`}
                         className="w-full px-6 py-4 rounded-2xl bg-white/5 border border-white/10 text-white placeholder-white/20 focus:outline-none focus:border-white/30 focus:bg-white/[0.07] transition-all text-lg"
                       />
@@ -443,28 +449,28 @@ export function LearningPathCreator() {
                 {currentStep === 3 && (
                   <RevealSection className="space-y-12">
                     <div className="text-center">
-                      <h2 className="font-display text-4xl font-bold mb-4 tracking-tight">Medium Selection</h2>
-                      <p className="text-muted-foreground text-lg">Pick the flow that fits your current energy levels.</p>
+                      <h2 className="font-display text-4xl font-bold mb-4 tracking-tight text-white">Medium Selection</h2>
+                      <p className="text-white/60 text-lg">Pick the flow that fits your current energy levels.</p>
                     </div>
                     <div ref={formatGridRef} className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       {formatOptions.map((option) => (
                         <TiltCard key={option.value}>
                           <button
-                            onClick={() => setData({ ...data, format: option.value as ContentFormat })}
+                            onClick={() => setData(prev => ({ ...prev, format: option.value as ContentFormat }))}
                             className={cn(
                               'format-card w-full p-8 rounded-[2.5rem] border flex flex-col items-center gap-6 transition-all duration-500 group relative overflow-hidden',
                               data.format === option.value
-                                ? `bg-gradient-to-br ${currentMoodColors.gradient} border-transparent shadow-2xl`
+                                ? `bg-gradient-to-br ${(currentMoodColors && currentMoodColors.gradient) || 'from-primary to-orange-500'} border-transparent shadow-2xl`
                                 : 'bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/20 text-white/60'
                             )}
                           >
-                            <NeuralIcon icon={option.icon} className="w-16 h-16" iconClassName="w-7 h-7" gradient={data.format === option.value ? 'from-white/20 to-white/5' : currentMoodColors.gradient} />
+                            <NeuralIcon icon={option.icon} className="w-16 h-16" iconClassName="w-7 h-7" gradient={data.format === option.value ? 'from-white/20 to-white/5' : (currentMoodColors?.gradient || 'from-primary to-orange-500')} />
                             <div className="text-center">
                               <span className="block font-bold text-xl mb-2 text-white">{option.label}</span>
                               <span className="text-sm opacity-60 leading-relaxed">{option.desc}</span>
                             </div>
                             {data.format === option.value && (
-                              <motion.div layoutId="formatActive" className="absolute inset-0 bg-white/10 mix-blend-overlay" />
+                              <div className="absolute inset-0 bg-white/10 mix-blend-overlay pointer-events-none" />
                             )}
                           </button>
                         </TiltCard>

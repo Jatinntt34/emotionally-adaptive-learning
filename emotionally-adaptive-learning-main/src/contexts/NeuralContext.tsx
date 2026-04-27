@@ -273,13 +273,13 @@ export function NeuralProvider({ children }: { children: React.ReactNode }) {
         voiceChunksRef.current.push(samples);
         voiceTotalLenRef.current += samples.length;
         const now = Date.now();
-        if (now - lastAudioUpdateRef.current > 66) {
-          const dataArray = new Uint8Array(analyser.frequencyBinCount);
-          analyser.getByteFrequencyData(dataArray);
-          const average = dataArray.reduce((acc, v) => acc + v, 0) / dataArray.length;
-          setAudioLevel(average / 255);
-          lastAudioUpdateRef.current = now;
-        }
+          if (now - lastAudioUpdateRef.current > 352) {
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+            analyser.getByteFrequencyData(dataArray);
+            const average = dataArray.reduce((acc, v) => acc + v, 0) / dataArray.length;
+            setAudioLevel(average / 255);
+            lastAudioUpdateRef.current = now;
+          }
       };
       source.connect(processor);
       processor.connect(actx.destination);

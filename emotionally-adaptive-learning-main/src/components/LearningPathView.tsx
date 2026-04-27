@@ -44,6 +44,21 @@ import { TiltCard } from './ui/TiltCard';
 import { NeuralIcon } from './ui/NeuralIcon';
 import { apiUrl, authHeaders } from '@/config';
 
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const moodMessages: Record<string, { onComplete: string }> = {
+  energetic: { onComplete: "Incredible energy! You've conquered this path with total power." },
+  calm: { onComplete: "A peaceful journey complete. Your understanding is now deep and clear." },
+  focused: { onComplete: "Target achieved. Your concentration has led to mastery." },
+  creative: { onComplete: "Masterpiece finished! You've explored this topic with brilliant insight." },
+  motivated: { onComplete: "Victory! You've pushed through and reached the summit." },
+  sad: { onComplete: "You did it. Gentle progress has led to a great accomplishment." },
+  anxious: { onComplete: "Breathe easy—you've successfully mastered this challenge." },
+  bored: { onComplete: "Spark ignited! You've turned curiosity into knowledge." },
+  unmotivated: { onComplete: "Momentum built! This small step has turned into a giant leap." },
+  curious: { onComplete: "Exploration complete. You've uncovered the depths of this topic." }
+};
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface QuizQuestion {
@@ -170,7 +185,7 @@ function InlineQuiz({
   return (
     <motion.div key={s.currentIndex} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}
       className="rounded-xl border border-border bg-card/50 p-6 space-y-5">
-      {/* Progress bar */}
+    {/* Progress bar */}
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <span>Question {s.currentIndex + 1} of {questions.length}</span>
         <span>{s.score} correct</span>
@@ -703,19 +718,19 @@ export function LearningPathView() {
                   </div>
                   <h1 className="text-5xl md:text-7xl font-display font-black tracking-tighter leading-[0.85]">
                     {pathData.topic}
-                    <span className={cn("block bg-gradient-to-r bg-clip-text text-transparent mt-2", moodColors.gradient)}>
+                    <span className={cn("block bg-gradient-to-r bg-clip-text text-transparent mt-2", currentMoodColors.gradient)}>
                       MASTERY
                     </span>
                   </h1>
                   
                   <div className="flex flex-wrap gap-4 pt-4">
-                    {pathData.mood && moodConfig[pathData.mood as MoodType] && (
+                    {pathData.mood && (
                       <div className={cn(
                         "flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold border border-white/10 backdrop-blur-sm",
-                        `bg-gradient-to-r ${moodConfig[pathData.mood as MoodType].gradient} bg-opacity-10 text-foreground`
+                        `bg-gradient-to-r ${currentMoodColors.gradient} bg-opacity-10 text-foreground`
                       )}>
-                        <LivingIcon iconName={(moodConfig[(pathData.mood?.toLowerCase() || 'focused') as MoodType] || moodConfig.focused).iconName} size="sm" isInteractive={false} />
-                        <span>Resonating {(moodConfig[(pathData.mood?.toLowerCase() || 'focused') as MoodType] || moodConfig.focused).label}</span>
+                        <LivingIcon iconName={currentMoodColors.iconName} size="sm" isInteractive={false} />
+                        <span>Resonating {currentMoodColors.label}</span>
                       </div>
                     )}
                     <div className="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold bg-white/5 border border-white/10 text-white/60">
@@ -756,7 +771,7 @@ export function LearningPathView() {
                   initial={{ width: 0 }}
                   animate={{ width: `${progress}%` }}
                   transition={{ duration: 1.5, ease: [0.22, 1, 0.36, 1], delay: 0.5 }}
-                  className={cn("h-full rounded-full bg-gradient-to-r relative", moodColors.gradient)}
+                  className={cn("h-full rounded-full bg-gradient-to-r relative", currentMoodColors.gradient)}
                 >
                   <motion.div
                     className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent"
@@ -777,13 +792,13 @@ export function LearningPathView() {
            className="relative mb-8 rounded-[2.5rem] overflow-hidden bg-white/[0.03] backdrop-blur-2xl group/dash"
         >
           {/* Ambient Glows Instead of Borders */}
-          <div className={cn("absolute inset-0 opacity-20 transition-all duration-1000 bg-gradient-to-br", moodColors.gradient)} />
+          <div className={cn("absolute inset-0 opacity-20 transition-all duration-1000 bg-gradient-to-br", currentMoodColors.gradient)} />
           
           <div className="relative p-8 space-y-6">
             <div className="flex items-center justify-between pb-6 border-b border-white/5">
               <div className="flex items-center gap-4">
                 <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center relative overflow-hidden group">
-                  <div className={cn("absolute inset-0 opacity-20 blur-sm animate-pulse", moodColors.gradient)} />
+                  <div className={cn("absolute inset-0 opacity-20 blur-sm animate-pulse", currentMoodColors.gradient)} />
                   <Brain className="w-5 h-5 text-primary relative z-10" />
                 </div>
                 <div>
@@ -829,7 +844,7 @@ export function LearningPathView() {
                     </span>
                   </div>
                   <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center p-2 relative">
-                     <div className={cn("absolute inset-0 blur-md opacity-20", moodColors.gradient)} />
+                     <div className={cn("absolute inset-0 blur-md opacity-20", currentMoodColors.gradient)} />
                      <motion.div 
                        animate={{ rotate: 360 }} 
                        transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
@@ -921,7 +936,7 @@ export function LearningPathView() {
                     {index !== modules.length - 1 && (
                       <div className="absolute left-[3.5rem] top-24 bottom-[-1rem] w-px z-0 overflow-hidden">
                         <motion.div 
-                          className={cn("absolute inset-0 w-full h-full opacity-20", moodColors.gradient)}
+                          className={cn("absolute inset-0 w-full h-full opacity-20", currentMoodColors.gradient)}
                         />
                         <motion.div 
                           animate={{ y: ['-100%', '100%'] }}
@@ -944,7 +959,7 @@ export function LearningPathView() {
                       )}>
                         <div className={cn(
                           'w-16 h-16 rounded-[1.25rem] flex items-center justify-center transition-all duration-700 shrink-0 shadow-lg',
-                          module.completed ? `bg-gradient-to-br ${moodColors.gradient} scale-95` : 'bg-secondary/50 group-hover:bg-secondary/80'
+                          module.completed ? `bg-gradient-to-br ${currentMoodColors.gradient} scale-95` : 'bg-secondary/50 group-hover:bg-secondary/80'
                         )}>
                           {module.completed ? (
                             <CheckCircle2 className="w-8 h-8 text-foreground" />
@@ -1069,7 +1084,7 @@ export function LearningPathView() {
                             </div>
                             {quizActiveFor === module.id && (
                               <ModuleQuiz topic={pathData.topic} moduleTitle={module.title} moduleType={module.type}
-                                moodGradient={moodColors.gradient}
+                                moodGradient={currentMoodColors.gradient}
                                 questions={module.questions}
                                 onComplete={(s, t) => handleModuleQuizComplete(module.id, s, t)}
                                 onSkip={() => handleModuleQuizSkip(module.id)} />
@@ -1108,7 +1123,7 @@ export function LearningPathView() {
                             </div>
                             {quizActiveFor === module.id && (
                               <ModuleQuiz topic={pathData.topic} moduleTitle={module.title} moduleType={module.type}
-                                moodGradient={moodColors.gradient}
+                                moodGradient={currentMoodColors.gradient}
                                 questions={module.questions}
                                 onComplete={(s, t) => handleModuleQuizComplete(module.id, s, t)}
                                 onSkip={() => handleModuleQuizSkip(module.id)} />
@@ -1136,7 +1151,7 @@ export function LearningPathView() {
                             ) : (
                               <InlineQuiz
                                 module={module}
-                                moodGradient={moodColors.gradient}
+                                moodGradient={currentMoodColors.gradient}
                                 onComplete={(score, total) => handleInlineQuizComplete(module.id, score, total)}
                               />
                             )
@@ -1155,10 +1170,10 @@ export function LearningPathView() {
         {progress === 100 && modules.length > 0 && (
           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }}
             className="mt-8 space-y-6">
-            <div className={`rounded-3xl p-8 text-center bg-gradient-to-br ${moodColors.gradient} bg-opacity-20 border border-primary/20`}>
+            <div className={cn("rounded-3xl p-8 text-center bg-opacity-20 border border-primary/20", currentMoodColors.gradient)}>
               <Trophy className="w-12 h-12 mx-auto mb-4" />
               <h2 className="text-2xl font-bold mb-2">Path Complete!</h2>
-              <p className="text-muted-foreground mb-2">{moodMessages[mood]?.onComplete ?? 'Amazing work!'}</p>
+              <p className="text-muted-foreground mb-2">{moodMessages[mood]?.onComplete || moodMessages.energetic.onComplete}</p>
               {Object.keys(quizScores).length > 0 && (
                 <p className="text-sm text-muted-foreground mb-6">
                   Quiz average:{' '}
@@ -1190,7 +1205,7 @@ export function LearningPathView() {
             {nextTopics.length > 0 && (
               <div className="glass-card rounded-3xl p-8 border border-white/5 bg-white/[0.02]">
                 <div className="flex items-center gap-3 mb-6">
-                  <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${moodColors.gradient} flex items-center justify-center`}>
+                  <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${currentMoodColors.gradient} flex items-center justify-center`}>
                     <Sparkles className="w-5 h-5 text-white" />
                   </div>
                   <div>
@@ -1316,5 +1331,3 @@ function Waveform({ level }: { level: number }) {
     </div>
   );
 }
-
-
