@@ -176,8 +176,7 @@ const Index = () => {
     };
   }, []);
 
-  // Defensive check — AFTER all hooks
-  if (!moodColors) return null;
+  // Component body
 
   return (
     <div ref={mainRef} className="min-h-screen bg-[#020205] text-foreground selection:bg-primary selection:text-primary-foreground relative overflow-hidden">

@@ -334,7 +334,10 @@ const allMoodClasses = Object.keys(moodConfig).map(m => `mood-${m}`);
 const MoodContext = createContext<MoodContextType | undefined>(undefined);
 
 export function MoodProvider({ children }: { children: ReactNode }) {
-  const [mood, setMoodState] = useState<MoodType>('energetic');
+  const [mood, setMoodState] = useState<MoodType>(() => {
+    const savedMood = localStorage.getItem('moodlearn_mood');
+    return (savedMood as MoodType) || 'energetic';
+  });
   const [previousMood, setPreviousMood] = useState<MoodType | null>(null);
   const [detectedRawEmotion, setDetectedRawEmotion] = useState<string | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -344,6 +347,7 @@ export function MoodProvider({ children }: { children: ReactNode }) {
     setPreviousMood(mood);
     setIsTransitioning(true);
     setMoodState(newMood);
+    localStorage.setItem('moodlearn_mood', newMood);
     document.body.classList.remove(...allMoodClasses);
     document.body.classList.add(`mood-${newMood}`);
     // Transition ends after overlay animation

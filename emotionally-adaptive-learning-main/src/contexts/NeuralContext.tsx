@@ -1,8 +1,8 @@
-import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useMood, MoodType } from '@/contexts/MoodContext';
 import { useEmotionTimer } from '@/hooks/useEmotionTimer';
-import { WS_BASE, apiUrl, authHeaders } from '@/config';
+import { WS_BASE } from '@/config';
 
 const EMOTION_TO_MOOD: Record<string, MoodType> = {
   angry: 'anxious',
@@ -47,18 +47,14 @@ export function NeuralProvider({ children }: { children: React.ReactNode }) {
   const [voiceEmotion, setVoiceEmotion] = useState<string>('Ready');
   const [voiceConfidence, setVoiceConfidence] = useState<number>(0);
   const [audioLevel, setAudioLevel] = useState(0);
+  const lastAudioUpdateRef = useRef<number>(0);
 
   const normalizeConfidence = (val: any) => {
     const num = parseFloat(val);
     if (isNaN(num)) return 0;
-    
-    // If val is > 100, it's likely erratic raw data, clamp to 100
-    // If val is > 1 and <= 100, it's a percentage, normalize to 0-1
-    // If val is <= 1, it's already normalized
     let normalized = num;
     if (num > 100) normalized = 100;
     if (normalized > 1) normalized = normalized / 100;
-    
     return Math.max(0, Math.min(normalized, 1));
   };
 
@@ -155,12 +151,7 @@ export function NeuralProvider({ children }: { children: React.ReactNode }) {
   const sendFrame = useCallback(() => {
     if (!videoRef.current || !canvasRef.current || wsRef.current?.readyState !== WebSocket.OPEN) return;
     const video = videoRef.current;
-
-    // Re-attach stream if the video element was remounted (e.g. NeuralDock open/close)
-    if (!video.srcObject && streamRef.current) {
-      video.srcObject = streamRef.current;
-    }
-
+    if (!video.srcObject && streamRef.current) video.srcObject = streamRef.current;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     if (ctx && video.videoWidth > 0 && video.videoHeight > 0) {
@@ -181,38 +172,25 @@ export function NeuralProvider({ children }: { children: React.ReactNode }) {
 
   const startCamera = useCallback(async () => {
     try {
-      if (!navigator.mediaDevices?.getUserMedia) {
-        throw new Error('Camera is not available in this browser.');
-      }
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error('Camera is not available.');
       setCurrentEmotion('Starting camera...');
       const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240, facingMode: 'user' } });
       streamRef.current = stream;
       setError(null);
-
-      // Wait for the video element to mount in the DOM (NeuralDock renders it
-      // conditionally when isCamActive becomes true — React may not have
-      // committed the update yet when this callback runs).
       const waitForVideoRef = () => new Promise<void>((resolve) => {
         let attempts = 0;
         const check = () => {
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-            resolve();
-          } else if (attempts < 30) {
-            attempts++;
-            requestAnimationFrame(check);
-          } else {
-            resolve(); // give up waiting, sendFrame will retry
-          }
+          if (videoRef.current) { videoRef.current.srcObject = stream; resolve(); }
+          else if (attempts < 30) { attempts++; requestAnimationFrame(check); }
+          else resolve();
         };
         check();
       });
       await waitForVideoRef();
-
       connectWebSocket();
       frameIntervalRef.current = window.setInterval(() => { sendFrame(); }, 1000);
     } catch (err: any) {
-      setError(err?.message || 'Failed to access camera. Please check permissions.');
+      setError(err?.message || 'Failed to access camera.');
       setIsCamActive(false);
     }
   }, [connectWebSocket, sendFrame]);
@@ -220,17 +198,13 @@ export function NeuralProvider({ children }: { children: React.ReactNode }) {
   const connectVoiceWs = useCallback((): WebSocket | null => {
     const token = localStorage.getItem('moodlearn_token');
     if (!token) {
-      setError('Please log in to use voice emotion tracking.');
+      setError('Please log in for voice tracking.');
       setIsMicActive(false);
       return null;
     }
     try {
       const ws = new WebSocket(`${WS_BASE}/ws/voice?token=${encodeURIComponent(token)}`);
-      ws.onopen = () => {
-        console.log('[Voice] WS connected');
-        setError(null);
-        setVoiceEmotion('Listening...');
-      };
+      ws.onopen = () => { setError(null); setVoiceEmotion('Listening...'); };
       ws.onmessage = (ev) => {
         try {
           const data = JSON.parse(ev.data);
@@ -246,19 +220,15 @@ export function NeuralProvider({ children }: { children: React.ReactNode }) {
             setVoiceEmotion('Ready');
             setVoiceConfidence(0);
           } else if (data.status === 'error') {
-            setError(data.message || 'Voice emotion analysis failed.');
+            setError(data.message || 'Voice analysis failed.');
           }
         } catch {}
       };
-      ws.onerror = () => {
-        console.warn('[Voice] WS error');
-        setError('Could not connect to the voice backend. Please refresh and try again.');
-        setIsMicActive(false);
-      };
+      ws.onerror = () => { setError('Voice backend connection failed.'); setIsMicActive(false); };
       ws.onclose = (event) => {
         if (event.code === 1008) {
           localStorage.removeItem('moodlearn_token');
-          setError('Your session expired. Please log in again to use voice tracking.');
+          setError('Session expired. Please log in again.');
           setIsMicActive(false);
         }
       };
@@ -282,47 +252,39 @@ export function NeuralProvider({ children }: { children: React.ReactNode }) {
 
   const startMic = useCallback(async () => {
     try {
-      if (!navigator.mediaDevices?.getUserMedia) {
-        throw new Error('Microphone is not available in this browser.');
-      }
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error('Microphone is not available.');
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       micStreamRef.current = stream;
       setError(null);
-
       const AudioCtxClass = (window as any).AudioContext || (window as any).webkitAudioContext;
-      if (!AudioCtxClass) {
-        throw new Error('Audio processing is not supported in this browser.');
-      }
+      if (!AudioCtxClass) throw new Error('Audio processing not supported.');
       const actx = new AudioCtxClass();
       audioCtxRef.current = actx;
       const nativeSR = actx.sampleRate;
       const TARGET_SR = 16000;
-
       const source = actx.createMediaStreamSource(stream);
-      
       const analyser = actx.createAnalyser();
       analyser.fftSize = 256;
       source.connect(analyser);
       analyserRef.current = analyser;
-
       const processor = actx.createScriptProcessor(4096, 1, 1);
       processor.onaudioprocess = (e: any) => {
         const samples = new Float32Array(e.inputBuffer.getChannelData(0));
         voiceChunksRef.current.push(samples);
         voiceTotalLenRef.current += samples.length;
-
-        // Calculate audio level for UI
-        const dataArray = new Uint8Array(analyser.frequencyBinCount);
-        analyser.getByteFrequencyData(dataArray);
-        const average = dataArray.reduce((acc, v) => acc + v, 0) / dataArray.length;
-        setAudioLevel(average / 255);
+        const now = Date.now();
+        if (now - lastAudioUpdateRef.current > 66) {
+          const dataArray = new Uint8Array(analyser.frequencyBinCount);
+          analyser.getByteFrequencyData(dataArray);
+          const average = dataArray.reduce((acc, v) => acc + v, 0) / dataArray.length;
+          setAudioLevel(average / 255);
+          lastAudioUpdateRef.current = now;
+        }
       };
       source.connect(processor);
       processor.connect(actx.destination);
       processorRef.current = processor;
-
       voiceWsRef.current = connectVoiceWs();
-
       voiceSendIntervalRef.current = window.setInterval(async () => {
         if (!voiceWsRef.current || voiceWsRef.current.readyState !== WebSocket.OPEN) {
           if (!voiceWsRef.current || voiceWsRef.current.readyState === WebSocket.CLOSED) {
@@ -330,17 +292,13 @@ export function NeuralProvider({ children }: { children: React.ReactNode }) {
           }
           return;
         }
-
         const totalLen = voiceTotalLenRef.current;
         if (totalLen < nativeSR) return;
-
         const merged = new Float32Array(totalLen);
         let offset = 0;
         for (const c of voiceChunksRef.current) { merged.set(c, offset); offset += c.length; }
-
         voiceChunksRef.current = [];
         voiceTotalLenRef.current = 0;
-
         let toSend: Float32Array;
         try {
           const targetLen = Math.max(1, Math.floor(merged.length * TARGET_SR / nativeSR));
@@ -348,16 +306,11 @@ export function NeuralProvider({ children }: { children: React.ReactNode }) {
           const srcBuf = offCtx.createBuffer(1, merged.length, nativeSR);
           srcBuf.copyToChannel(merged, 0);
           const offSrc = offCtx.createBufferSource();
-          offSrc.buffer = srcBuf;
-          offSrc.connect(offCtx.destination);
-          offSrc.start();
+          offSrc.buffer = srcBuf; offSrc.connect(offCtx.destination); offSrc.start();
           const rendered = await offCtx.startRendering();
           toSend = new Float32Array(rendered.getChannelData(0));
         } catch { toSend = merged; }
-
-        if (voiceWsRef.current?.readyState === WebSocket.OPEN) {
-          voiceWsRef.current.send(toSend.buffer);
-        }
+        if (voiceWsRef.current?.readyState === WebSocket.OPEN) voiceWsRef.current.send(toSend.buffer);
       }, 5000);
     } catch (err: any) {
       setError(err?.message || 'Microphone access denied.');
@@ -383,7 +336,7 @@ export function NeuralProvider({ children }: { children: React.ReactNode }) {
     
   const liveConfidence = Math.max(isCamActive ? (confidence || 0) : 0, isMicActive ? (voiceConfidence || 0) : 0);
 
-  const value = {
+  const value = useMemo(() => ({
     isCamActive, setIsCamActive,
     isMicActive, setIsMicActive,
     currentEmotion, confidence,
@@ -392,17 +345,17 @@ export function NeuralProvider({ children }: { children: React.ReactNode }) {
     timerState, timeLeft,
     error, videoRef, canvasRef,
     audioLevel
-  };
+  }), [
+    isCamActive, isMicActive, currentEmotion, confidence, 
+    voiceEmotion, voiceConfidence, liveEmotion, liveConfidence, 
+    timerState, timeLeft, error, audioLevel
+  ]);
 
   return <NeuralContext.Provider value={value}>{children}</NeuralContext.Provider>;
 }
 
 export function useNeuralTracking() {
   const context = useContext(NeuralContext);
-  if (context === undefined) {
-    throw new Error('useNeuralTracking must be used within a NeuralProvider');
-  }
+  if (context === undefined) throw new Error('useNeuralTracking must be used within a NeuralProvider');
   return context;
 }
-
-
