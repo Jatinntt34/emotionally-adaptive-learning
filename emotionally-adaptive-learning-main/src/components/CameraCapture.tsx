@@ -1,21 +1,8 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { useMood, MoodType } from '@/contexts/MoodContext';
-import { useEmotionTimer } from '@/hooks/useEmotionTimer';
-import { Camera, CameraOff, Mic, MicOff, AlertCircle, Clock, CheckCircle2, ScanFace, Loader2 } from 'lucide-react';
+import { useNeuralTracking } from '@/contexts/NeuralContext';
+import { Camera, CameraOff, Mic, MicOff, AlertCircle, Clock, CheckCircle2, ScanFace } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { WS_BASE } from '@/config';
-
-const EMOTION_TO_MOOD: Record<string, MoodType> = {
-  angry: 'anxious',
-  calm: 'calm',
-  disgust: 'unmotivated',
-  fear: 'anxious',
-  happy: 'energetic',
-  neutral: 'calm',
-  sad: 'sad',
-  surprise: 'curious'
-};
 
 const NEURAL_PROMPTS = [
   "I'm really enjoying this topic!",
@@ -25,20 +12,27 @@ const NEURAL_PROMPTS = [
   "Show me something more advanced."
 ];
 
-const TARGET_SR = 16000;
-
 export function CameraCapture() {
   const location = useLocation();
-  const { setMood, setDetectedRawEmotion } = useMood();
-  const [isActive, setIsActive] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [currentEmotion, setCurrentEmotion] = useState<string>('Unknown');
-  const [confidence, setConfidence] = useState<number>(0);
+  const { 
+    isCamActive: isActive, 
+    setIsCamActive: setIsActive,
+    isMicActive,
+    setIsMicActive,
+    currentEmotion,
+    confidence,
+    voiceEmotion,
+    voiceConfidence,
+    timerState,
+    timeLeft,
+    videoRef,
+    canvasRef,
+    error: neuralError
+  } = useNeuralTracking();
 
-  // Voice — continuous live streaming
-  const [isMicActive, setIsMicActive] = useState(false);
-  const [voiceEmotion, setVoiceEmotion] = useState<string>('Listening...');
-  const [voiceConfidence, setVoiceConfidence] = useState<number>(0);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const error = neuralError || localError;
+
   const [activePromptIdx, setActivePromptIdx] = useState(0);
 
   useEffect(() => {
@@ -49,291 +43,6 @@ export function CameraCapture() {
       return () => clearInterval(interval);
     }
   }, [isMicActive]);
-  const voiceWsRef = useRef<WebSocket | null>(null);
-  const micStreamRef = useRef<MediaStream | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const processorRef = useRef<ScriptProcessorNode | null>(null);
-  const voiceSendIntervalRef = useRef<number | null>(null);
-  const voiceChunksRef = useRef<Float32Array[]>([]);
-  const voiceTotalLenRef = useRef<number>(0);
-
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const wsRef = useRef<WebSocket | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const frameIntervalRef = useRef<number | null>(null);
-
-  const isLearningPath = location.pathname.includes('/learning-path');
-  const cooldownDuration = isLearningPath ? 180 : 30;
-
-  const handleMoodLocked = useCallback((winnerMapped: MoodType, winnerRaw: string) => {
-    setMood(winnerMapped);
-    setDetectedRawEmotion(winnerRaw);
-  }, [setMood, setDetectedRawEmotion]);
-
-  // Either camera or mic being active feeds emotions into the timer
-  const isAnyDetectionActive = isActive || isMicActive;
-
-  const { timerState, timeLeft, addEmotionToBuffer } = useEmotionTimer(
-    isAnyDetectionActive,
-    handleMoodLocked,
-    cooldownDuration
-  );
-
-  // --- CAMERA WS LOGIC ---
-  const connectWebSocket = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) return;
-    const token = localStorage.getItem('moodlearn_token');
-    if (!token) {
-      setError('Please log in to use camera emotion tracking.');
-      setIsActive(false);
-      return;
-    }
-    try {
-      const ws = new WebSocket(`${WS_BASE}/ws/emotion?token=${encodeURIComponent(token)}`);
-      ws.onopen = () => { setError(null); };
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.status === 'success' && data.emotion) {
-            // High-confidence face detection — show in UI and add to buffer
-            setCurrentEmotion(data.emotion);
-            setConfidence(data.confidence || 0);
-            const mappedMood = EMOTION_TO_MOOD[data.emotion];
-            if (mappedMood) addEmotionToBuffer(mappedMood, data.emotion);
-          } else if (data.status === 'low_confidence' && data.emotion) {
-            // Below threshold — show in UI so user sees what model is reading,
-            // but do NOT push to the emotion buffer (it would skew majority vote)
-            setCurrentEmotion(data.emotion);
-            setConfidence(data.confidence || 0);
-          }
-        } catch (e) {
-          console.error('Failed to parse WebSocket message', e);
-        }
-      };
-      ws.onerror = () => {
-        setError('Failed to connect to backend server. Make sure api.py is running.');
-        setIsActive(false);
-      };
-      wsRef.current = ws;
-    } catch (e) {
-      setError('WebSocket initialization failed.');
-    }
-  }, [addEmotionToBuffer]);
-
-  const sendFrame = useCallback(() => {
-    if (!videoRef.current || !canvasRef.current || wsRef.current?.readyState !== WebSocket.OPEN) return;
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    if (ctx && video.videoWidth > 0 && video.videoHeight > 0) {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const base64Image = canvas.toDataURL('image/jpeg', 0.5);
-      wsRef.current.send(base64Image);
-    }
-  }, []);
-
-  const stopCamera = useCallback(() => {
-    if (frameIntervalRef.current) { window.clearInterval(frameIntervalRef.current); frameIntervalRef.current = null; }
-    if (streamRef.current) { streamRef.current.getTracks().forEach(track => track.stop()); streamRef.current = null; }
-    if (videoRef.current) videoRef.current.srcObject = null;
-    if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
-  }, []);
-
-  const startCamera = useCallback(async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240, facingMode: 'user' } });
-      if (videoRef.current) videoRef.current.srcObject = stream;
-      streamRef.current = stream;
-      setError(null);
-      connectWebSocket();
-      frameIntervalRef.current = window.setInterval(() => { sendFrame(); }, 1000);
-    } catch (err: any) {
-      setError('Failed to access camera. Please check permissions.');
-      setIsActive(false);
-    }
-  }, [connectWebSocket, sendFrame]);
-
-  // --- CONTINUOUS VOICE STREAMING ---
-  // Captures mic audio continuously, sends 3-second chunks every 3 seconds
-  // to the backend voice WS for live emotion detection.
-
-  const connectVoiceWs = useCallback((): WebSocket | null => {
-    const token = localStorage.getItem('moodlearn_token');
-    if (!token) {
-      setError('Please log in to use voice emotion tracking.');
-      setIsMicActive(false);
-      return null;
-    }
-    try {
-      const ws = new WebSocket(`${WS_BASE}/ws/voice?token=${encodeURIComponent(token)}`);
-      ws.onopen = () => {
-        console.log('[Voice] WS connected');
-      };
-      ws.onmessage = (ev) => {
-        try {
-          const data = JSON.parse(ev.data);
-          console.log('[Voice]', data);
-          if (data.status === 'success' && data.emotion) {
-            setVoiceEmotion(data.emotion);
-            setVoiceConfidence(data.confidence || 0);
-            const mappedMood = EMOTION_TO_MOOD[data.emotion];
-            if (mappedMood) {
-              addEmotionToBuffer(mappedMood, data.emotion);
-            }
-          } else if (data.status === 'low_confidence' && data.emotion) {
-            // Show the emotion in UI but don't push to timer buffer
-            // (below threshold — we still want the user to see what's being heard)
-            setVoiceEmotion(data.emotion);
-            setVoiceConfidence(data.confidence || 0);
-          } else if (data.status === 'no_voice') {
-            setVoiceEmotion('Listening...');
-            setVoiceConfidence(0);
-          }
-        } catch {}
-      };
-      ws.onerror = () => {
-        console.warn('[Voice] WS error');
-      };
-      ws.onclose = () => {
-        console.log('[Voice] WS closed');
-      };
-      return ws;
-    } catch {
-      return null;
-    }
-  }, [addEmotionToBuffer]);
-
-  const stopMic = useCallback(() => {
-    if (voiceSendIntervalRef.current) {
-      window.clearInterval(voiceSendIntervalRef.current);
-      voiceSendIntervalRef.current = null;
-    }
-    if (processorRef.current) {
-      try { processorRef.current.disconnect(); } catch {}
-      processorRef.current = null;
-    }
-    if (micStreamRef.current) {
-      micStreamRef.current.getTracks().forEach(t => t.stop());
-      micStreamRef.current = null;
-    }
-    if (audioCtxRef.current) {
-      try { audioCtxRef.current.close(); } catch {}
-      audioCtxRef.current = null;
-    }
-    if (voiceWsRef.current) {
-      try { voiceWsRef.current.close(); } catch {}
-      voiceWsRef.current = null;
-    }
-    voiceChunksRef.current = [];
-    voiceTotalLenRef.current = 0;
-    setVoiceEmotion('Listening...');
-    setVoiceConfidence(0);
-  }, []);
-
-  const startMic = useCallback(async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      micStreamRef.current = stream;
-      setError(null);
-
-      const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
-      const actx = new AudioCtxClass();
-      audioCtxRef.current = actx;
-      const nativeSR = actx.sampleRate;
-      // TARGET_SR updated to 16000 to match backend wav2vec2 model
-
-      // Capture raw audio samples continuously
-      const source = actx.createMediaStreamSource(stream);
-      const processor = actx.createScriptProcessor(4096, 1, 1);
-      processor.onaudioprocess = (e) => {
-        const samples = new Float32Array(e.inputBuffer.getChannelData(0));
-        voiceChunksRef.current.push(samples);
-        voiceTotalLenRef.current += samples.length;
-      };
-      source.connect(processor);
-      processor.connect(actx.destination);
-      processorRef.current = processor;
-
-      // Connect voice WebSocket
-      voiceWsRef.current = connectVoiceWs();
-
-      // Every 5 seconds: merge chunks, resample to 16000, send to backend
-      // 5s gives the model ~5 seconds of speech context instead of 3s,
-      // producing more stable MFCC features and better emotion accuracy.
-      voiceSendIntervalRef.current = window.setInterval(async () => {
-        if (!voiceWsRef.current || voiceWsRef.current.readyState !== WebSocket.OPEN) {
-          // Reconnect if disconnected
-          if (!voiceWsRef.current || voiceWsRef.current.readyState === WebSocket.CLOSED) {
-            voiceWsRef.current = connectVoiceWs();
-          }
-          return;
-        }
-
-        const chunks = voiceChunksRef.current;
-        const totalLen = voiceTotalLenRef.current;
-        if (totalLen < nativeSR) return; // need at least 1 second of audio
-
-        // Merge all chunks
-        const merged = new Float32Array(totalLen);
-        let offset = 0;
-        for (const c of chunks) { merged.set(c, offset); offset += c.length; }
-
-        // Clear buffer for next cycle
-        voiceChunksRef.current = [];
-        voiceTotalLenRef.current = 0;
-
-        // Resample to 16000 Hz
-        let toSend: Float32Array;
-        try {
-          const targetLen = Math.max(1, Math.floor(merged.length * TARGET_SR / nativeSR));
-          const offCtx = new OfflineAudioContext(1, targetLen, TARGET_SR);
-          const srcBuf = offCtx.createBuffer(1, merged.length, nativeSR);
-          srcBuf.copyToChannel(merged, 0);
-          const offSrc = offCtx.createBufferSource();
-          offSrc.buffer = srcBuf;
-          offSrc.connect(offCtx.destination);
-          offSrc.start();
-          const rendered = await offCtx.startRendering();
-          toSend = new Float32Array(rendered.getChannelData(0));
-        } catch {
-          toSend = merged;
-        }
-
-        // Send to backend
-        if (voiceWsRef.current?.readyState === WebSocket.OPEN) {
-          voiceWsRef.current.send(toSend.buffer);
-        }
-      }, 5000);
-
-    } catch (err: any) {
-      setError('Microphone access denied. Please check browser permissions.');
-      setIsMicActive(false);
-    }
-  }, [connectVoiceWs]);
-
-  // Camera lifecycle
-  useEffect(() => {
-    if (isActive) startCamera();
-    else stopCamera();
-    return () => stopCamera();
-  }, [isActive, startCamera, stopCamera]);
-
-  // Mic lifecycle
-  useEffect(() => {
-    if (isMicActive) startMic();
-    else stopMic();
-    return () => stopMic();
-  }, [isMicActive, startMic, stopMic]);
-
-  useEffect(() => {
-    if (!isActive) {
-      setCurrentEmotion('Unknown');
-      setConfidence(0);
-    }
-  }, [isActive]);
 
   const toggleCamera = () => setIsActive(!isActive);
   const toggleMic = () => setIsMicActive(!isMicActive);
@@ -361,7 +70,6 @@ export function CameraCapture() {
               whileTap={{ scale: 0.98 }}
               onClick={() => {
                 if (!isMicActive) toggleMic();
-                // We could simulate voice here, but for now we just activate the mic
               }}
               className="text-left text-[10px] py-1.5 px-2.5 rounded-lg border border-transparent hover:border-primary/20 transition-all text-muted-foreground hover:text-primary font-medium"
             >
@@ -372,7 +80,7 @@ export function CameraCapture() {
       </motion.div>
 
       {/* Camera feed panel */}
-      <AnimatePresence>
+      <AnimatePresence mode="wait">
         {isActive && (
           <motion.div
             initial={{ opacity: 0, y: 20, scale: 0.9 }}
@@ -381,7 +89,13 @@ export function CameraCapture() {
             className="pointer-events-auto bg-card text-card-foreground p-3 rounded-2xl shadow-xl border border-border/50 flex flex-col items-center gap-2 backdrop-blur-sm bg-opacity-90 min-w-[200px] will-change-transform"
           >
             <div className="relative rounded-lg overflow-hidden w-full h-[120px] bg-black/20 border border-border/50 flex items-center justify-center">
-              <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover transform -scale-x-100" />
+              <video 
+                ref={videoRef} 
+                autoPlay 
+                playsInline 
+                muted 
+                className="w-full h-full object-cover transform -scale-x-100" 
+              />
               <canvas ref={canvasRef} className="hidden" />
 
               {/* Timer badge */}
@@ -404,8 +118,8 @@ export function CameraCapture() {
               <span className="font-medium capitalize text-primary">
                 {currentEmotion !== 'Unknown' ? currentEmotion : 'Detecting...'}
               </span>
-              {currentEmotion !== 'Unknown' && (
-                <span className="text-muted-foreground text-xs font-mono">{Math.round(confidence)}%</span>
+              {confidence > 0 && (
+                <span className="text-muted-foreground text-xs font-mono">{Math.round(confidence * 100)}%</span>
               )}
             </div>
           </motion.div>
@@ -413,7 +127,7 @@ export function CameraCapture() {
       </AnimatePresence>
 
       {/* Voice live panel — shows when mic is active */}
-      <AnimatePresence>
+      <AnimatePresence mode="wait">
         {isMicActive && (
           <motion.div
             initial={{ opacity: 0, y: 20, scale: 0.9 }}
@@ -422,7 +136,6 @@ export function CameraCapture() {
             className="pointer-events-auto bg-card text-card-foreground p-3 rounded-2xl shadow-xl border border-border/50 backdrop-blur-sm min-w-[200px] will-change-transform"
           >
             <div className="flex items-center gap-3">
-              {/* Mic indicator */}
               <div className="relative shrink-0">
                 <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center">
                   <Mic className="w-5 h-5 text-red-500" />
@@ -437,12 +150,11 @@ export function CameraCapture() {
                 </span>
                 {voiceConfidence > 0 && (
                   <span className="text-[11px] text-muted-foreground font-mono">
-                    {Math.round(voiceConfidence)}% confidence
+                    {Math.round(voiceConfidence * 100)}% confidence
                   </span>
                 )}
               </div>
 
-              {/* Timer badge for voice */}
               {!isActive && (
                 <div className="ml-auto flex items-center gap-1 bg-black/10 dark:bg-white/10 px-2 py-1 rounded-full text-[10px] font-medium">
                   {timerState === 'grace' && <><Clock className="w-3 h-3 text-amber-400 animate-pulse"/>Ready {timeLeft}s</>}
@@ -452,7 +164,6 @@ export function CameraCapture() {
               )}
             </div>
 
-            {/* Visual Waveform (Simulated) */}
             <div className="mt-3 flex items-end gap-[2px] h-4 px-1">
               {[...Array(12)].map((_, i) => (
                 <motion.div
@@ -470,7 +181,6 @@ export function CameraCapture() {
               ))}
             </div>
 
-            {/* Listening state indicator */}
             <div className="mt-3 py-2 px-3 bg-primary/5 rounded-xl border border-primary/10">
               <p className="text-[10px] text-primary/60 font-medium italic">
                 Listening for your response...
@@ -497,7 +207,6 @@ export function CameraCapture() {
 
       {/* Control buttons */}
       <div className="flex gap-2 items-center pointer-events-auto">
-        {/* Camera toggle */}
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
@@ -512,7 +221,6 @@ export function CameraCapture() {
           {isActive ? <Camera className="w-5 h-5" /> : <CameraOff className="w-5 h-5" />}
         </motion.button>
 
-        {/* Mic toggle — continuous voice streaming */}
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
@@ -530,5 +238,3 @@ export function CameraCapture() {
     </div>
   );
 }
-
-

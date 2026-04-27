@@ -262,9 +262,6 @@ export function NeuralDock() {
                           <span className="text-[10px] font-mono uppercase tracking-[0.22em] text-white/35">
                             Mood Presets
                           </span>
-                          <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-primary/70">
-                            Safe View
-                          </span>
                         </div>
                         <div className="grid grid-cols-3 gap-2">
                         {moods.map(([moodType, config], idx) => {
@@ -283,7 +280,7 @@ export function NeuralDock() {
                               transition={{ delay: idx * 0.03 }}
                               whileHover={{ scale: 1.03, y: -2 }}
                               onClick={() => {
-                                setMood(moodType as any);
+                                setMood(moodType as any, true);
                                 setIsMoodOpen(false);
                               }}
                               className={cn(
@@ -296,7 +293,6 @@ export function NeuralDock() {
                               <LivingIcon 
                                 iconName={config.iconName} 
                                 size="sm" 
-                                color={isSelected ? config.color : undefined}
                               />
                               <span className={cn(
                                 "text-[9px] uppercase leading-tight tracking-[0.14em] font-black transition-colors duration-300",
@@ -400,5 +396,3 @@ function DockIcon({ children, onClick, active, color = 'primary', moodGradient }
     </motion.button>
   );
 }
-
-

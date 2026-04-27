@@ -716,9 +716,9 @@ export function LearningPathView() {
                     <Activity className="w-3 h-3" />
                     Neural Generation Complete
                   </div>
-                  <h1 className="text-5xl md:text-7xl font-display font-black tracking-tighter leading-[0.85]">
+                  <h1 className="text-4xl md:text-7xl font-display font-black tracking-tighter leading-[0.85]">
                     {pathData.topic}
-                    <span className={cn("block bg-gradient-to-r bg-clip-text text-transparent mt-2", currentMoodColors.gradient)}>
+                    <span className={cn("block bg-gradient-to-r bg-clip-text text-transparent mt-2", currentMoodColors?.gradient || 'from-primary to-orange-500')}>
                       MASTERY
                     </span>
                   </h1>
@@ -741,19 +741,19 @@ export function LearningPathView() {
                 </div>
 
                 {/* Mobile Stats & Camera (Visible only on mobile/tablet < lg) */}
-                <div className="flex lg:hidden flex-col gap-6 mt-10">
-                   <div className="flex items-center justify-between bg-black/30 rounded-3xl p-6 backdrop-blur-2xl border border-white/5 shadow-2xl">
-                    <div className="text-center space-y-1 px-4">
-                      <div className="flex items-center justify-center gap-2 text-3xl font-black tabular-nums">
-                        <Flame className="w-7 h-7 text-orange-500" />
+                <div className="flex lg:hidden flex-col gap-4 mt-6">
+                   <div className="flex items-center justify-between bg-black/30 rounded-2xl p-4 backdrop-blur-2xl border border-white/5 shadow-2xl">
+                    <div className="text-center space-y-1 px-2">
+                      <div className="flex items-center justify-center gap-2 text-2xl font-black tabular-nums">
+                        <Flame className="w-5 h-5 text-orange-500" />
                         {completedCount}
                       </div>
-                      <span className="text-[9px] font-mono uppercase tracking-widest text-white/30">Milestones</span>
+                      <span className="text-[8px] font-mono uppercase tracking-widest text-white/30 text-center block">Milestones</span>
                     </div>
-                    <div className="w-[1px] h-12 bg-white/10" />
-                    <div className="text-center space-y-1 px-4">
-                      <div className="text-3xl font-black tabular-nums">{Math.round(progress)}%</div>
-                      <span className="text-[9px] font-mono uppercase tracking-widest text-white/30">Mastery</span>
+                    <div className="w-[1px] h-10 bg-white/10" />
+                    <div className="text-center space-y-1 px-2">
+                      <div className="text-2xl font-black tabular-nums">{Math.round(progress)}%</div>
+                      <span className="text-[8px] font-mono uppercase tracking-widest text-white/30 text-center block">Mastery</span>
                     </div>
                    </div>
 
@@ -795,7 +795,7 @@ export function LearningPathView() {
               </div>
 
               {/* Enhanced Progress Bar */}
-              <div className="mt-14 relative h-4 bg-white/5 rounded-full overflow-hidden border border-white/5 p-1">
+              <div className="mt-8 lg:mt-14 relative h-4 bg-white/5 rounded-full overflow-hidden border border-white/5 p-1">
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: `${progress}%` }}
@@ -1284,34 +1284,54 @@ function NeuralMirror({ videoRef, isActive, emotion, confidence }: { videoRef: R
   // Use a LOCAL ref for this video element so we don't steal the shared ref
   // from the NeuralDock. Copy the stream from the shared videoRef instead.
   const localVideoRef = React.useRef<HTMLVideoElement>(null);
+  const [isPlaying, setIsPlaying] = React.useState(false);
 
   React.useEffect(() => {
-    if (!isActive || !localVideoRef.current) return;
-    // Copy stream from the shared ref or from the srcObject
-    const srcVideo = videoRef.current;
-    if (srcVideo?.srcObject) {
-      localVideoRef.current.srcObject = srcVideo.srcObject;
+    if (!isActive || !localVideoRef.current) {
+      setIsPlaying(false);
+      return;
     }
-    // Also watch for when the stream gets attached later
-    const interval = setInterval(() => {
-      if (srcVideo?.srcObject && localVideoRef.current && !localVideoRef.current.srcObject) {
-        localVideoRef.current.srcObject = srcVideo.srcObject;
+
+    const srcVideo = videoRef.current;
+    const destVideo = localVideoRef.current;
+
+    const syncStream = async () => {
+      if (srcVideo?.srcObject && destVideo && destVideo.srcObject !== srcVideo.srcObject) {
+        destVideo.srcObject = srcVideo.srcObject;
+        try {
+          await destVideo.play();
+          setIsPlaying(true);
+        } catch (err) {
+          console.warn("NeuralMirror auto-play prevented:", err);
+        }
       }
-    }, 500);
-    return () => clearInterval(interval);
+    };
+
+    syncStream();
+    
+    const interval = setInterval(syncStream, 1000);
+    return () => {
+      clearInterval(interval);
+      if (destVideo) destVideo.srcObject = null;
+    };
   }, [isActive, videoRef]);
 
   return (
     <div className="relative group">
       <div className="absolute -inset-1 bg-gradient-to-r from-primary/50 to-purple-500/50 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200" />
-      <div className="relative w-48 h-32 rounded-2xl overflow-hidden bg-black/40 border border-white/10 backdrop-blur-xl">
+      <div className="relative w-40 h-28 sm:w-48 sm:h-32 rounded-2xl overflow-hidden bg-black/40 border border-white/10 backdrop-blur-xl shadow-2xl transform-gpu">
         {isActive ? (
           <video 
             ref={localVideoRef} 
             autoPlay 
             playsInline 
             muted 
-            className="w-full h-full object-cover grayscale brightness-125 contrast-75 opacity-80" 
+            onCanPlay={() => localVideoRef.current?.play().catch(() => {})}
+            onLoadedMetadata={() => localVideoRef.current?.play().catch(() => {})}
+            className={cn(
+              "w-full h-full object-cover transition-all duration-700 transform-gpu",
+              isPlaying ? "grayscale brightness-125 contrast-75 opacity-80" : "opacity-0"
+            )} 
           />
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-white/20">

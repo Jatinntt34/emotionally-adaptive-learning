@@ -177,17 +177,14 @@ export function NeuralProvider({ children }: { children: React.ReactNode }) {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240, facingMode: 'user' } });
       streamRef.current = stream;
       setError(null);
-      const waitForVideoRef = () => new Promise<void>((resolve) => {
-        let attempts = 0;
-        const check = () => {
-          if (videoRef.current) { videoRef.current.srcObject = stream; resolve(); }
-          else if (attempts < 30) { attempts++; requestAnimationFrame(check); }
-          else resolve();
-        };
-        check();
-      });
-      await waitForVideoRef();
+      
+      // Sync ref immediately if available
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      
       connectWebSocket();
+      if (frameIntervalRef.current) window.clearInterval(frameIntervalRef.current);
       frameIntervalRef.current = window.setInterval(() => { sendFrame(); }, 1000);
     } catch (err: any) {
       setError(err?.message || 'Failed to access camera.');
@@ -323,6 +320,13 @@ export function NeuralProvider({ children }: { children: React.ReactNode }) {
     else stopCamera();
     return () => stopCamera();
   }, [isCamActive, startCamera, stopCamera]);
+
+  // Sync video element with stream when it mounts/unmounts
+  useEffect(() => {
+    if (isCamActive && streamRef.current && videoRef.current && !videoRef.current.srcObject) {
+      videoRef.current.srcObject = streamRef.current;
+    }
+  }, [isCamActive, videoRef.current]);
 
   useEffect(() => {
     if (isMicActive) startMic();

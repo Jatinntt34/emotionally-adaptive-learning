@@ -378,7 +378,7 @@ export function LearningPathCreator() {
                             <button
                               key={moodType}
                               onClick={() => {
-                                setMood(moodType as MoodType);
+                                setMood(moodType as MoodType, true);
                                 setData(prev => ({ ...prev, mood: moodType as MoodType }));
                               }}
                               className={cn(
@@ -412,7 +412,7 @@ export function LearningPathCreator() {
                             className={cn(
                               'speed-card w-full p-8 rounded-[2.5rem] border flex flex-col items-center gap-6 transition-all duration-500 group relative overflow-hidden',
                               data.speed === option.value
-                                ? `bg-gradient-to-br ${(currentMoodColors && currentMoodColors.gradient) || 'from-primary to-orange-500'} border-transparent shadow-2xl`
+                                ? `bg-gradient-to-br ${(currentMoodColors?.gradient) || 'from-primary to-orange-500'} border-transparent shadow-2xl`
                                 : 'bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/20 text-white/60'
                             )}
                           >
@@ -460,7 +460,7 @@ export function LearningPathCreator() {
                             className={cn(
                               'format-card w-full p-8 rounded-[2.5rem] border flex flex-col items-center gap-6 transition-all duration-500 group relative overflow-hidden',
                               data.format === option.value
-                                ? `bg-gradient-to-br ${(currentMoodColors && currentMoodColors.gradient) || 'from-primary to-orange-500'} border-transparent shadow-2xl`
+                                ? `bg-gradient-to-br ${(currentMoodColors?.gradient) || 'from-primary to-orange-500'} border-transparent shadow-2xl`
                                 : 'bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/20 text-white/60'
                             )}
                           >
@@ -490,7 +490,7 @@ export function LearningPathCreator() {
                     disabled={!canProceed() || isGenerating}
                     className={cn(
                       "min-w-[220px] h-16 rounded-2xl font-bold text-lg shadow-2xl transition-all",
-                      canProceed() ? `bg-gradient-to-r ${currentMoodColors.gradient} text-white` : "bg-white/10 text-white/20"
+                      canProceed() ? `bg-gradient-to-r ${currentMoodColors?.gradient || 'from-primary to-orange-500'} text-white` : "bg-white/10 text-white/20"
                     )}
                   >
                     {isGenerating ? (

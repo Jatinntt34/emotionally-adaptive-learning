@@ -39,11 +39,13 @@ interface MoodColors {
 interface MoodContextType {
   mood: MoodType;
   previousMood: MoodType | null;
-  setMood: (mood: MoodType) => void;
+  setMood: (mood: MoodType, isManual?: boolean) => void;
   detectedRawEmotion: string | null;
   setDetectedRawEmotion: (emotion: string | null) => void;
   moodColors: MoodColors;
   isTransitioning: boolean;
+  isManualLock: boolean;
+  setIsManualLock: (lock: boolean) => void;
 }
 
 const moodConfig: Record<MoodType, MoodColors> = {
@@ -339,26 +341,61 @@ export function MoodProvider({ children }: { children: ReactNode }) {
     return (savedMood as MoodType) || 'energetic';
   });
   const [previousMood, setPreviousMood] = useState<MoodType | null>(null);
-  const [detectedRawEmotion, setDetectedRawEmotion] = useState<string | null>(null);
+  const [detectedRawEmotion, setDetectedRawEmotionState] = useState<string | null>(() => {
+    return localStorage.getItem('moodlearn_detected_raw');
+  });
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [isManualLock, setIsManualLockState] = useState<boolean>(() => {
+    return localStorage.getItem('moodlearn_manual_lock') === 'true';
+  });
 
-  const setMood = useCallback((newMood: MoodType) => {
+  const setIsManualLock = useCallback((lock: boolean) => {
+    setIsManualLockState(lock);
+    localStorage.setItem('moodlearn_manual_lock', lock.toString());
+  }, []);
+
+  const setMood = useCallback((newMood: MoodType, isManual: boolean = false) => {
+    // If it's an AI update (not manual) and we have a manual lock, ignore it
+    if (!isManual && isManualLock) return;
+
     if (newMood === mood) return;
+
+    // If user explicitly selects a mood, we lock it
+    if (isManual) {
+      setIsManualLock(true);
+    }
+
     setPreviousMood(mood);
     setIsTransitioning(true);
     setMoodState(newMood);
     localStorage.setItem('moodlearn_mood', newMood);
+    
+    // Also clear raw emotion if it's a manual change
+    if (isManual) {
+      setDetectedRawEmotionState(null);
+      localStorage.removeItem('moodlearn_detected_raw');
+    }
     document.body.classList.remove(...allMoodClasses);
     document.body.classList.add(`mood-${newMood}`);
     // Transition ends after overlay animation
     setTimeout(() => setIsTransitioning(false), 800);
-  }, [mood]);
+  }, [mood, isManualLock, setIsManualLock]);
 
   useEffect(() => {
+    document.body.classList.remove(...allMoodClasses);
     document.body.classList.add(`mood-${mood}`);
     return () => {
       document.body.classList.remove(`mood-${mood}`);
     };
+  }, [mood]);
+
+  const setDetectedRawEmotion = useCallback((emotion: string | null) => {
+    setDetectedRawEmotionState(emotion);
+    if (emotion) {
+      localStorage.setItem('moodlearn_detected_raw', emotion);
+    } else {
+      localStorage.removeItem('moodlearn_detected_raw');
+    }
   }, []);
 
   return (
@@ -369,7 +406,9 @@ export function MoodProvider({ children }: { children: ReactNode }) {
       detectedRawEmotion, 
       setDetectedRawEmotion, 
       moodColors: moodConfig[mood], 
-      isTransitioning 
+      isTransitioning,
+      isManualLock,
+      setIsManualLock
     }}>
       {children}
     </MoodContext.Provider>

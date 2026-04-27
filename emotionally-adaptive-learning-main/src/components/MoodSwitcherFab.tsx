@@ -11,7 +11,7 @@ export function MoodSwitcherFab() {
   const moods = Object.entries(moodConfig) as [MoodType, (typeof moodConfig)[MoodType]][];
 
   const handleSelect = useCallback((newMood: MoodType) => {
-    setMood(newMood);
+    setMood(newMood, true);
     setIsOpen(false);
   }, [setMood]);
 
