@@ -2,7 +2,8 @@
 // In development: Vite proxy handles /api/* and /ws/* → localhost:8000
 // In production: VITE_API_URL points to HuggingFace Spaces backend
 
-const RAW_API_URL = import.meta.env.VITE_API_URL || '';
+const DEFAULT_PROD_API_URL = 'https://ichimarugin2-affex-api.hf.space';
+const RAW_API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? DEFAULT_PROD_API_URL : '');
 
 // For fetch() calls: empty string in dev (uses proxy), full URL in prod
 export const API_BASE = RAW_API_URL;

@@ -110,7 +110,10 @@ export function NeuralProvider({ children }: { children: React.ReactNode }) {
     }
     try {
       const ws = new WebSocket(`${WS_BASE}/ws/emotion?token=${encodeURIComponent(token)}`);
-      ws.onopen = () => { setError(null); };
+      ws.onopen = () => {
+        setError(null);
+        setCurrentEmotion('Looking for face...');
+      };
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
@@ -122,14 +125,26 @@ export function NeuralProvider({ children }: { children: React.ReactNode }) {
           } else if (data.status === 'low_confidence' && data.emotion) {
             setCurrentEmotion(sanitizeEmotion(data.emotion));
             setConfidence(normalizeConfidence(data.confidence));
+          } else if (data.status === 'no_face') {
+            setCurrentEmotion('No face detected');
+            setConfidence(0);
+          } else if (data.status === 'error') {
+            setError(data.message || 'Camera emotion analysis failed.');
           }
         } catch (e) {
           console.error('Failed to parse WebSocket message', e);
         }
       };
       ws.onerror = () => {
-        setError('Failed to connect to backend server. Make sure api.py is running.');
+        setError('Could not connect to the emotion backend. Please refresh and try again.');
         setIsCamActive(false);
+      };
+      ws.onclose = (event) => {
+        if (event.code === 1008) {
+          localStorage.removeItem('moodlearn_token');
+          setError('Your session expired. Please log in again to use camera tracking.');
+          setIsCamActive(false);
+        }
       };
       wsRef.current = ws;
     } catch (e) {
@@ -166,6 +181,10 @@ export function NeuralProvider({ children }: { children: React.ReactNode }) {
 
   const startCamera = useCallback(async () => {
     try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error('Camera is not available in this browser.');
+      }
+      setCurrentEmotion('Starting camera...');
       const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240, facingMode: 'user' } });
       streamRef.current = stream;
       setError(null);
@@ -193,7 +212,7 @@ export function NeuralProvider({ children }: { children: React.ReactNode }) {
       connectWebSocket();
       frameIntervalRef.current = window.setInterval(() => { sendFrame(); }, 1000);
     } catch (err: any) {
-      setError('Failed to access camera. Please check permissions.');
+      setError(err?.message || 'Failed to access camera. Please check permissions.');
       setIsCamActive(false);
     }
   }, [connectWebSocket, sendFrame]);
@@ -207,7 +226,11 @@ export function NeuralProvider({ children }: { children: React.ReactNode }) {
     }
     try {
       const ws = new WebSocket(`${WS_BASE}/ws/voice?token=${encodeURIComponent(token)}`);
-      ws.onopen = () => console.log('[Voice] WS connected');
+      ws.onopen = () => {
+        console.log('[Voice] WS connected');
+        setError(null);
+        setVoiceEmotion('Listening...');
+      };
       ws.onmessage = (ev) => {
         try {
           const data = JSON.parse(ev.data);
@@ -222,10 +245,23 @@ export function NeuralProvider({ children }: { children: React.ReactNode }) {
           } else if (data.status === 'no_voice') {
             setVoiceEmotion('Ready');
             setVoiceConfidence(0);
+          } else if (data.status === 'error') {
+            setError(data.message || 'Voice emotion analysis failed.');
           }
         } catch {}
       };
-      ws.onerror = () => console.warn('[Voice] WS error');
+      ws.onerror = () => {
+        console.warn('[Voice] WS error');
+        setError('Could not connect to the voice backend. Please refresh and try again.');
+        setIsMicActive(false);
+      };
+      ws.onclose = (event) => {
+        if (event.code === 1008) {
+          localStorage.removeItem('moodlearn_token');
+          setError('Your session expired. Please log in again to use voice tracking.');
+          setIsMicActive(false);
+        }
+      };
       return ws;
     } catch { return null; }
   }, [addEmotionToBuffer]);
@@ -246,11 +282,17 @@ export function NeuralProvider({ children }: { children: React.ReactNode }) {
 
   const startMic = useCallback(async () => {
     try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error('Microphone is not available in this browser.');
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       micStreamRef.current = stream;
       setError(null);
 
       const AudioCtxClass = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtxClass) {
+        throw new Error('Audio processing is not supported in this browser.');
+      }
       const actx = new AudioCtxClass();
       audioCtxRef.current = actx;
       const nativeSR = actx.sampleRate;
@@ -318,7 +360,7 @@ export function NeuralProvider({ children }: { children: React.ReactNode }) {
         }
       }, 5000);
     } catch (err: any) {
-      setError('Microphone access denied.');
+      setError(err?.message || 'Microphone access denied.');
       setIsMicActive(false);
     }
   }, [connectVoiceWs]);

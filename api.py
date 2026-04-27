@@ -128,8 +128,14 @@ app = FastAPI()
 
 ALLOWED_ORIGINS = ["*"]
 
-app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_credentials=True,
-                   allow_methods=["*"], allow_headers=["*"])
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/")
 async def root():
@@ -702,6 +708,7 @@ async def youtube_search(q: str, topic: str = "", current_user: dict = Depends(g
         search_q = f"{clean_q} -shorts -short"
 
         search_url = (f"https://www.googleapis.com/youtube/v3/search?part=snippet&type=video"
+                      f"&videoEmbeddable=true"
                       f"&videoDuration=medium&maxResults=3&q={_uparse.quote_plus(search_q)}&key={yt_key}")
         
         with urllib.request.urlopen(urllib.request.Request(search_url, headers={"User-Agent": "Mozilla/5.0"}), timeout=8) as resp:
@@ -718,6 +725,7 @@ async def youtube_search(q: str, topic: str = "", current_user: dict = Depends(g
         if not items:
             # Fallback to any duration if medium is too restrictive
             search_url = (f"https://www.googleapis.com/youtube/v3/search?part=snippet&type=video"
+                          f"&videoEmbeddable=true"
                           f"&maxResults=1&q={_uparse.quote_plus(search_q)}&key={yt_key}")
             with urllib.request.urlopen(urllib.request.Request(search_url, headers={"User-Agent": "Mozilla/5.0"}), timeout=8) as resp:
                 search_data = json.loads(resp.read().decode())

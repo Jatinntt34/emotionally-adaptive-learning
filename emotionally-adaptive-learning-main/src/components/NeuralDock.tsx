@@ -24,6 +24,7 @@ export function NeuralDock() {
     currentEmotion, confidence,
     liveEmotion, liveConfidence,
     timerState, timeLeft,
+    error,
     videoRef, canvasRef,
     audioLevel
   } = useNeuralTracking();
@@ -99,6 +100,18 @@ export function NeuralDock() {
             {/* --- NEURAL INSIGHTS & TRACKING STACK --- */}
             <div className="flex flex-col items-center gap-3 w-full">
               <AnimatePresence mode="wait">
+                {error && (
+                  <motion.div
+                    key="sensor-error"
+                    initial={{ opacity: 0, y: 10, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.96 }}
+                    className="w-full rounded-r-[1.5rem] border border-red-500/20 bg-red-500/10 p-3 text-xs font-medium text-red-100 shadow-[0_18px_35px_-18px_rgba(239,68,68,0.55)] backdrop-blur-lg"
+                  >
+                    {error}
+                  </motion.div>
+                )}
+
                 {/* Active Tracking Panel */}
                 {(isCamActive || isMicActive) && (
                   <motion.div
