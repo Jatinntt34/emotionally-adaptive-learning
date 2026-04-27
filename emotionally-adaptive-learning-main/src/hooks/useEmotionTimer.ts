@@ -77,7 +77,7 @@ export function useEmotionTimer(
     // ── Time expired — transition to next phase ────────────────────────────
     if (current === 'grace') {
       emotionBuffer.current = [];
-      setTimerState('analyzing', 15);
+      setTimerState('analyzing', 7);
       return;
     }
 
@@ -122,7 +122,7 @@ export function useEmotionTimer(
       isFirstCycleRef.current = false;
       emotionBuffer.current = [];
       // Re-use full 15 s window every cycle for consistency
-      setTimerState('analyzing', 15);
+      setTimerState('analyzing', 7);
       return;
     }
   }, [setTimerState]);

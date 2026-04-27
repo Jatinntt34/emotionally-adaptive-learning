@@ -83,7 +83,7 @@ export function NeuralProvider({ children }: { children: React.ReactNode }) {
   const frameIntervalRef = useRef<number | null>(null);
 
   const isLearningPath = location.pathname.includes('/learning-path');
-  const cooldownDuration = isLearningPath ? 45 : 30; // Reduced from 180s to 45s for better responsiveness
+  const cooldownDuration = isLearningPath ? 180 : 30;
 
   const handleMoodLocked = useCallback((winnerMapped: MoodType, winnerRaw: string) => {
     setMood(winnerMapped);
