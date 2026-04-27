@@ -740,6 +740,35 @@ export function LearningPathView() {
                   </div>
                 </div>
 
+                {/* Mobile Stats & Camera (Visible only on mobile/tablet < lg) */}
+                <div className="flex lg:hidden flex-col gap-6 mt-10">
+                   <div className="flex items-center justify-between bg-black/30 rounded-3xl p-6 backdrop-blur-2xl border border-white/5 shadow-2xl">
+                    <div className="text-center space-y-1 px-4">
+                      <div className="flex items-center justify-center gap-2 text-3xl font-black tabular-nums">
+                        <Flame className="w-7 h-7 text-orange-500" />
+                        {completedCount}
+                      </div>
+                      <span className="text-[9px] font-mono uppercase tracking-widest text-white/30">Milestones</span>
+                    </div>
+                    <div className="w-[1px] h-12 bg-white/10" />
+                    <div className="text-center space-y-1 px-4">
+                      <div className="text-3xl font-black tabular-nums">{Math.round(progress)}%</div>
+                      <span className="text-[9px] font-mono uppercase tracking-widest text-white/30">Mastery</span>
+                    </div>
+                   </div>
+
+                   <div className="flex justify-center">
+                      <div className="scale-95 origin-center">
+                        <NeuralMirror 
+                          videoRef={videoRef}
+                          isActive={isCamActive}
+                          emotion={liveEmotion}
+                          confidence={liveConfidence}
+                        />
+                      </div>
+                   </div>
+                </div>
+
                  <div className="hidden lg:flex items-center gap-10">
                     <NeuralMirror 
                       videoRef={videoRef}
@@ -794,8 +823,8 @@ export function LearningPathView() {
           {/* Ambient Glows Instead of Borders */}
           <div className={cn("absolute inset-0 opacity-20 transition-all duration-1000 bg-gradient-to-br", currentMoodColors.gradient)} />
           
-          <div className="relative p-8 space-y-6">
-            <div className="flex items-center justify-between pb-6 border-b border-white/5">
+          <div className="relative p-6 md:p-8 space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-white/5">
               <div className="flex items-center gap-4">
                 <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center relative overflow-hidden group">
                   <div className={cn("absolute inset-0 opacity-20 blur-sm animate-pulse", currentMoodColors.gradient)} />
@@ -814,9 +843,9 @@ export function LearningPathView() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-6">
+              <div className="flex flex-wrap items-center gap-4 sm:gap-6">
                 {/* Voice Status HUD */}
-                <div className="flex items-center gap-4 px-4 py-2 rounded-2xl bg-white/5 backdrop-blur-3xl shadow-2xl">
+                <div className="flex items-center gap-4 px-4 py-2 rounded-2xl bg-white/5 backdrop-blur-3xl shadow-2xl flex-1 sm:flex-none">
                   <div className="flex items-center gap-2">
                     <div className="relative">
                       <Mic className={cn("w-3.5 h-3.5 transition-colors duration-500", isMicActive ? "text-primary" : "text-white/20")} />
@@ -829,14 +858,14 @@ export function LearningPathView() {
                     </div>
                     <Waveform level={audioLevel} />
                   </div>
-                  <div className="w-[px] h-4 bg-white/5" />
+                  <div className="w-[1px] h-4 bg-white/5" />
                   <div className="min-w-[80px]">
                     <p className="text-[8px] font-mono uppercase tracking-tighter opacity-40 italic">Vocal resonance</p>
                     <p className="text-xs font-bold truncate tracking-tight">{isMicActive ? (voiceEmotion === 'Unknown' ? 'Analyzing...' : voiceEmotion) : 'Resting'}</p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 bg-white/5 sm:bg-transparent px-4 py-2 sm:p-0 rounded-2xl">
                   <div className="flex flex-col items-end">
                     <span className="text-[8px] font-mono uppercase tracking-[0.2em] opacity-40">Neural Sync</span>
                     <span className="text-xs font-bold tabular-nums tracking-tighter">
