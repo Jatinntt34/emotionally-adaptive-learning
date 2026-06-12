@@ -1,4 +1,4 @@
-# Emotionally Adaptive Learning System
+ #  Emotionally Adaptive Learning System
 
 An AI-driven platform that adapts its learning content based on the user's emotional state, detected via facial expressions and voice analysis.
 
