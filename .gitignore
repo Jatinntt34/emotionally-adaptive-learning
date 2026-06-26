@@ -54,7 +54,6 @@ pytestdebug.log
 *.pot
 
 # Django stuff:
-*.log
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
@@ -117,29 +116,6 @@ ENV/
 env.bak/
 venv.bak/
 
-# Project specific ignores
-datasets/
-models/
-audio models and  dataset/
-cache/
-*.png
-*.jpg
-*.jpeg
-*.gif
-diagnose_output.txt
-
-# Agent metadata
-.agent/
-.gsd/
-.gemini/
-.vscode/
-
-# Frontend (Vite/React)
-emotionally-adaptive-learning-main/node_modules/
-emotionally-adaptive-learning-main/dist/
-emotionally-adaptive-learning-main/dist-ssr/
-emotionally-adaptive-learning-main/*.local
-
 # Logs
 logs
 *.log
@@ -148,6 +124,45 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+
+# Project specific ignores
+datasets/
+models/
+audio_models/
+audio_datasets/
+cache/
+*.png
+*.jpg
+*.jpeg
+*.gif
+diagnose_output.txt
+
+# Machine Learning files
+*.onnx
+*.pb
+*.h5
+*.pkl
+*.joblib
+
+# Frontend (Vite/React)
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Agent metadata
+.agent/
+.gsd/
+.gemini/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
 
 # Deployment
 deploy_hf.py
