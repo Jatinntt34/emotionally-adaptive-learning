@@ -62,3 +62,8 @@ To keep the repository size manageable and for security reasons, the following a
 
 - **Missing Models**: If the backend fails to start because of missing `.h5` or `.keras` files, ensure you have placed the trained models in the `models/` directory.
 - **API Errors**: Ensure your `GEMINI_API_KEY` is valid and has sufficient quota.
+
+
+
+
+for direct link to the website - https://emotionally-adaptive-learning2.vercel.app/
